@@ -8,16 +8,26 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [datesOpen, setDatesOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
-  const { user, logout } = useAuth();
+
+  const { user, loading, logout } = useAuth();
 
   useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 50);
-    };
-
+    const handleScroll = () => setScrolled(window.scrollY > 50);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  const openDates = () => {
+    setDatesOpen(true);
+    setAccountOpen(false);
+  };
+  const closeDates = () => setDatesOpen(false);
+
+  const openAccount = () => {
+    setAccountOpen(true);
+    setDatesOpen(false);
+  };
+  const closeAccount = () => setAccountOpen(false);
 
   return (
     <nav
@@ -26,14 +36,12 @@ export default function Navbar() {
       }`}
     >
       <div className="flex justify-between items-center text-sm tracking-widest uppercase">
-
         {/* Logo */}
         <a href="/" className="hover:opacity-60 transition">
           Jonathan
         </a>
 
         <div className="flex gap-10 items-center">
-
           <a href="/jonathan" className="hover:opacity-60 transition">
             Qui est-il?
           </a>
@@ -45,13 +53,16 @@ export default function Navbar() {
           {/* Les Dates */}
           <div
             className="relative"
-            onMouseEnter={() => setDatesOpen(true)}
-            onMouseLeave={() => setDatesOpen(false)}
+            onMouseEnter={openDates}
+            onMouseLeave={closeDates}
           >
-            
-            <a href="/dates/more" className="block px-4 py-2 text-sm hover:bg-white/10 transition">
-                LES DATES
+            <a
+              href="/dates/more"
+              className="block px-4 py-2 text-sm hover:bg-white/10 transition"
+            >
+              LES DATES
             </a>
+
             <AnimatePresence>
               {datesOpen && (
                 <motion.ul
@@ -62,22 +73,34 @@ export default function Navbar() {
                   className="absolute top-full left-1/2 -translate-x-1/2 mt-3 w-40 bg-black border border-white/10 rounded-sm shadow-lg overflow-hidden"
                 >
                   <li>
-                    <a href="/dates/2026" className="block px-4 py-2 text-sm hover:bg-white/10 transition">
+                    <a
+                      href="/dates/2026"
+                      className="block px-4 py-2 text-sm hover:bg-white/10 transition"
+                    >
                       2026
                     </a>
                   </li>
                   <li>
-                    <a href="/dates/2024" className="block px-4 py-2 text-sm hover:bg-white/10 transition">
+                    <a
+                      href="/dates/2024"
+                      className="block px-4 py-2 text-sm hover:bg-white/10 transition"
+                    >
                       2024
                     </a>
                   </li>
                   <li>
-                    <a href="/dates/2022" className="block px-4 py-2 text-sm hover:bg-white/10 transition">
+                    <a
+                      href="/dates/2022"
+                      className="block px-4 py-2 text-sm hover:bg-white/10 transition"
+                    >
                       2022
                     </a>
                   </li>
                   <li>
-                    <a href="/dates/more" className="block px-4 py-2 text-sm hover:bg-white/10 transition">
+                    <a
+                      href="/dates/more"
+                      className="block px-4 py-2 text-sm hover:bg-white/10 transition"
+                    >
                       Plus...
                     </a>
                   </li>
@@ -87,15 +110,19 @@ export default function Navbar() {
           </div>
 
           {/* Auth */}
-          {!user ? (
+          {loading ? (
+            <span className="text-white/40 text-xs tracking-[0.3em]">
+              ...
+            </span>
+          ) : !user ? (
             <a href="/login" className="hover:opacity-60 transition">
               CONNEXION
             </a>
           ) : (
             <div
               className="relative"
-              onMouseEnter={() => setAccountOpen(true)}
-              onMouseLeave={() => setAccountOpen(false)}
+              onMouseEnter={openAccount}
+              onMouseLeave={closeAccount}
             >
               <button className="hover:opacity-60 transition">
                 MON COMPTE
@@ -111,12 +138,18 @@ export default function Navbar() {
                     className="absolute top-full right-0 mt-3 w-48 bg-black border border-white/10 rounded-sm shadow-lg overflow-hidden"
                   >
                     <li>
-                      <a href="/account" className="block px-4 py-2 text-sm hover:bg-white/10 transition">
+                      <a
+                        href="/account"
+                        className="block px-4 py-2 text-sm hover:bg-white/10 transition"
+                      >
                         Mes informations
                       </a>
                     </li>
                     <li>
-                      <a href="/posts" className="block px-4 py-2 text-sm hover:bg-white/10 transition">
+                      <a
+                        href="/posts"
+                        className="block px-4 py-2 text-sm hover:bg-white/10 transition"
+                      >
                         Mes posts
                       </a>
                     </li>
@@ -133,7 +166,6 @@ export default function Navbar() {
               </AnimatePresence>
             </div>
           )}
-
         </div>
       </div>
     </nav>

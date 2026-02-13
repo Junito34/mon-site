@@ -6,7 +6,7 @@ type ImageSectionProps = {
   image: string;
   title?: string;
   overlay?: number; // 0 → 1
-  zoom?: number;    // 1 = normal
+  zoom?: number; // 1 = normal
   fit?: "cover" | "contain";
 };
 
@@ -25,11 +25,7 @@ export default function ImageSection({
         isContain ? "py-20" : "h-screen"
       }`}
     >
-      <div
-        className={`relative w-[85%] overflow-hidden ${
-          isContain ? "" : "h-[75%]"
-        }`}
-      >
+      <div className={`relative w-[85%] overflow-hidden ${isContain ? "" : "h-[75%]"}`}>
         {isContain ? (
           <div className="relative w-full">
             {/* Fond ciné : même image en cover + blur */}
@@ -42,20 +38,27 @@ export default function ImageSection({
                 sizes="85vw"
                 priority={false}
               />
-              {/* Assombrissement du fond */}
               <div className="absolute inset-0 bg-black/50" />
             </div>
 
-            {/* Image principale : 0 crop */}
-            <div className="relative flex items-center justify-center">
+            {/* Wrapper zoom (image + overlay ensemble) */}
+            <div
+              className="relative flex items-center justify-center"
+              style={{ transform: `scale(${zoom})`, transformOrigin: "center" }}
+            >
               <Image
                 src={image}
                 alt={title || "Image section"}
                 width={1600}
                 height={1000}
                 className="w-full h-auto object-contain"
-                style={{ transform: `scale(${zoom})` }}
                 priority={false}
+              />
+
+              {/* Overlay qui suit le zoom */}
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{ backgroundColor: `rgba(0,0,0,${overlay})` }}
               />
             </div>
           </div>
@@ -63,7 +66,7 @@ export default function ImageSection({
           // Mode cover plein cadre
           <div
             className="absolute inset-0"
-            style={{ transform: `scale(${zoom})` }}
+            style={{ transform: `scale(${zoom})`, transformOrigin: "center" }}
           >
             <Image
               src={image}
@@ -73,16 +76,16 @@ export default function ImageSection({
               sizes="85vw"
               priority={false}
             />
+
+            {/* Overlay qui suit le zoom */}
+            <div
+              className="absolute inset-0 pointer-events-none"
+              style={{ backgroundColor: `rgba(0,0,0,${overlay})` }}
+            />
           </div>
         )}
 
-        {/* Overlay global (au-dessus de tout) */}
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{ backgroundColor: `rgba(0,0,0,${overlay})` }}
-        />
-
-        {/* Titre en bas à droite */}
+        {/* Titre (ne doit PAS zoomer, donc dehors) */}
         {title && (
           <div className="absolute bottom-6 right-6 text-right">
             <h2 className="text-xs md:text-sm tracking-[0.3em] uppercase text-white/80">

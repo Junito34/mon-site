@@ -65,7 +65,7 @@ export default function PhotosClient({ images }: { images: string[] }) {
           <motion.div
             animate={{ y: [0, 8, 0] }}
             transition={{ repeat: Infinity, duration: 1.6 }}
-            className="mt-2 w-[1px] h-8 bg-white"
+            className="mt-2 w-px h-8 bg-white"
           />
         </motion.div>
 
@@ -78,7 +78,7 @@ export default function PhotosClient({ images }: { images: string[] }) {
               <motion.div
                 key={i}
                 style={{ y, rotate }}
-                className="absolute w-[300px] h-[420px] shadow-2xl cursor-pointer"
+                className="absolute w-75 h-105 shadow-2xl cursor-pointer"
                 onClick={() => setSelectedIndex(i)}
               >
                 <Image

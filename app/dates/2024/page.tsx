@@ -38,12 +38,10 @@ export default function Page2024() {
             </div>
             <ImageSection 
                     image="/articles/2024image1.jpg"
-                    fit="contain"
-                    overlay={0.4} />
+                    fit="contain" />
             <ImageSection 
                     image="/articles/2024image2.jpg"
-                    fit="contain"
-                    overlay={0.4} />
+                    fit="contain"/>
             <div className="absolute right-0 -bottom-6 text-xs tracking-[0.4em] uppercase text-white/40 hidden md:block">
                 Auteur : <span className="text-white/70">Michel</span>
             </div>
@@ -51,7 +49,7 @@ export default function Page2024() {
           </div>
     
           {/* Section commentaires */}
-          <Comments articleId="dates-2024" />
+          <Comments />
     </main>
     <Footer />
     </>

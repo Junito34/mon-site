@@ -101,7 +101,7 @@ export default function Page2022() {
             {/* Bloc musique */}
         <YouTubeEmbed url="https://youtu.be/rtunffvBdFg" title="Morceau demandé par Nadège" />
       {/* Commentaires */}
-      <Comments articleId="dates-2022" />
+      <Comments />
     </main>
     <Footer />
     </>

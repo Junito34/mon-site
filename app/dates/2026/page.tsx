@@ -56,7 +56,7 @@ export default function Page2026() {
         
 
       {/* Section commentaires */}
-      <Comments articleId="dates-2026" />
+      <Comments />
     </main>
     <Footer />
     </>

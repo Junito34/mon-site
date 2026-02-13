@@ -14,11 +14,7 @@ export const metadata = {
   description: "Hommage à Jonathan Denis-Quanquin",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr">
       <body className={`${playfair.className} bg-black text-white overflow-x-hidden`}>
