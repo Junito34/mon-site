@@ -48,10 +48,10 @@ export default function Navbar() {
             onMouseEnter={() => setDatesOpen(true)}
             onMouseLeave={() => setDatesOpen(false)}
           >
-            <button className="hover:opacity-60 transition">
-              LES DATES
-            </button>
-
+            
+            <a href="/dates/more" className="block px-4 py-2 text-sm hover:bg-white/10 transition">
+                LES DATES
+            </a>
             <AnimatePresence>
               {datesOpen && (
                 <motion.ul

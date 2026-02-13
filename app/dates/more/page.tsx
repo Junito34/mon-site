@@ -1,29 +1,56 @@
+import fs from "fs";
+import path from "path";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import DatesMoreClient from "./DatesMoreClient";
 
-export default function AllPages() {
+type PageLink = {
+  title: string;
+  href: string;
+  year: string;
+  author?: string;
+};
+
+function isYearFolder(name: string) {
+  return /^\d{4}$/.test(name);
+}
+
+export default function DatesMorePage() {
+  const datesDir = path.join(process.cwd(), "app", "dates");
+  const entries = fs.readdirSync(datesDir, { withFileTypes: true });
+
+  const pages: PageLink[] = entries
+    .filter((e) => e.isDirectory() && isYearFolder(e.name))
+    .map((e) => {
+      const year = e.name;
+      const href = `/dates/${year}`;
+
+      // meta.json optionnel
+      const metaPath = path.join(datesDir, year, "meta.json");
+      let title = year;
+      let author: string | undefined = undefined;
+
+      if (fs.existsSync(metaPath)) {
+        try {
+          const raw = fs.readFileSync(metaPath, "utf-8");
+          const meta = JSON.parse(raw) as { title?: string; author?: string };
+          if (meta.title) title = meta.title;
+          if (meta.author) author = meta.author;
+        } catch {
+          // si meta cassé, on ignore et on fallback
+        }
+      }
+
+      return { title, href, year, author };
+    })
+    // tri récent -> ancien
+    .sort((a, b) => Number(b.year) - Number(a.year));
+
   return (
     <>
-    <Navbar />
-    <main className="min-h-screen bg-black text-white flex items-center justify-center">
-      <h2 className="text-[3vw] font-light">Toutes les pages</h2><br/>
-      <li>
-            <a href="/dates/2026" className="block px-4 py-2 text-sm hover:bg-white/10 transition">
-                2026
-            </a>
-        </li>
-        <li>
-            <a href="/dates/2024" className="block px-4 py-2 text-sm hover:bg-white/10 transition">
-                2024
-            </a>
-        </li>
-        <li>
-            <a href="/dates/2022" className="block px-4 py-2 text-sm hover:bg-white/10 transition">
-                2022
-            </a>
-        </li>
-    </main>
-    <Footer />
+      <Navbar />
+      <DatesMoreClient pages={pages} />
+      <Footer />
     </>
   );
 }
