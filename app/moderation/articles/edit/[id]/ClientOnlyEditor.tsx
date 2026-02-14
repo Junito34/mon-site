@@ -1,7 +1,6 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import type React from "react";
+import ArticleEditorClient from "./ArticleEditorClient";
 
 type DbBlock = {
   id: string;
@@ -19,24 +18,10 @@ type DbArticle = {
   published_date: string | null;
 };
 
-type Props = {
+export default function ClientOnlyEditor(props: {
   initialArticle: DbArticle | null;
   initialBlocks: DbBlock[];
   initialError: string | null;
-};
-
-const ArticleEditorClient = dynamic<Props>(
-  () => import("./ArticleEditorClient"),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="min-h-[200px] flex items-center justify-center text-white/50 text-sm">
-        Chargement de l’éditeur…
-      </div>
-    ),
-  }
-);
-
-export default function ClientOnlyEditor(props: Props) {
+}) {
   return <ArticleEditorClient {...props} />;
 }

@@ -30,6 +30,22 @@ type Block =
   | { id: string; type: "youtube"; url: string; caption?: string }
   | { id: string; type: "image"; file?: File | null; url?: string; caption?: string };
 
+type DbBlock = {
+  id: string;
+  type: string;
+  content: string | null;
+  media_url: string | null;
+  caption: string | null;
+  sort_index: number;
+};
+
+type DbArticle = {
+  id: string;
+  title: string;
+  slug: string;
+  published_date: string | null;
+};
+
 const uid = () => crypto.randomUUID();
 
 function slugify(input: string) {
@@ -140,7 +156,6 @@ function SortableBlockCard({
     transition,
   };
 
-  // combine refs (DnD + scroll)
   const setRefs = (el: HTMLDivElement | null) => {
     setNodeRef(el);
     registerEl(block.id, el);
@@ -156,7 +171,6 @@ function SortableBlockCard({
         isHighlighted ? "ring-2 ring-white/50 bg-white/10 animate-pulse" : "",
       ].join(" ")}
     >
-      {/* header */}
       <div className="px-5 py-4 border-b border-white/5">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex items-center gap-4">
@@ -195,7 +209,6 @@ function SortableBlockCard({
         </div>
       </div>
 
-      {/* body */}
       <div className="p-5">
         {block.type === "image" ? (
           <div className="space-y-3">
@@ -250,42 +263,26 @@ function SortableBlockCard({
 
 type Validation =
   | { ok: true }
-  | {
-      ok: false;
-      message: string;
-      field: "title" | "date" | "slug" | "blocks";
-    };
+  | { ok: false; message: string; field: "title" | "date" | "slug" | "blocks" };
 
-export default function AddArticleClient() {
+export default function ArticleEditorClient({
+  initialArticle,
+  initialBlocks,
+  initialError,
+}: {
+  initialArticle: DbArticle | null;
+  initialBlocks: DbBlock[];
+  initialError: string | null;
+}) {
   const supabase = createClient();
 
   const [mobileView, setMobileView] = useState<"editor" | "preview">("editor");
 
-  const [title, setTitle] = useState("");
-  const [publishedDate, setPublishedDate] = useState<string>("");
-  const [slugInput, setSlugInput] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(initialError);
   const [msg, setMsg] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  const [blocks, setBlocks] = useState<Block[]>([{ id: uid(), type: "paragraph", content: "" }]);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  );
-
-  const computedSlug = useMemo(
-    () => (slugInput ? slugify(slugInput) : slugify(title)),
-    [slugInput, title]
-  );
-
-  const previewYear = useMemo(
-    () => (publishedDate ? yearFromDate(publishedDate) : "—"),
-    [publishedDate]
-  );
-
-  // ===== scroll + flash refs
+  // refs pour scroll + flash erreurs
   const titleRef = useRef<HTMLInputElement | null>(null);
   const dateRef = useRef<HTMLInputElement | null>(null);
   const slugRef = useRef<HTMLInputElement | null>(null);
@@ -301,10 +298,7 @@ export default function AddArticleClient() {
 
   const scrollToEl = (el: HTMLElement | null) => {
     if (!el) return;
-    // petit délai -> layout stable
-    requestAnimationFrame(() => {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-    });
+    requestAnimationFrame(() => el.scrollIntoView({ behavior: "smooth", block: "center" }));
   };
 
   const flashFieldAndScroll = (field: "title" | "date" | "slug" | "blocks") => {
@@ -323,6 +317,69 @@ export default function AddArticleClient() {
     scrollToEl(blockElsRef.current[id] ?? null);
   };
 
+  if (!initialArticle) {
+    return (
+      <main className="min-h-screen bg-black text-white pt-40 pb-20 px-6">
+        <div className="max-w-3xl mx-auto">
+          <h1 className="text-3xl font-light">Article introuvable</h1>
+          {err && <p className="mt-4 text-white/60">{err}</p>}
+        </div>
+      </main>
+    );
+  }
+
+  // ✅ IMPORTANT: l’état doit être initialisé UNE fois avec initialArticle / initialBlocks
+  const [title, setTitle] = useState(initialArticle.title ?? "");
+  const [publishedDate, setPublishedDate] = useState(
+    initialArticle.published_date ? initialArticle.published_date.slice(0, 10) : ""
+  );
+  const [slugInput, setSlugInput] = useState(initialArticle.slug ?? "");
+
+  const computedSlug = useMemo(
+    () => (slugInput ? slugify(slugInput) : slugify(title)),
+    [slugInput, title]
+  );
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const [blocks, setBlocks] = useState<Block[]>(
+    (initialBlocks ?? [])
+      .slice()
+      .sort((a, b) => (a.sort_index ?? 0) - (b.sort_index ?? 0))
+      .map((b) => {
+        if (b.type === "image") {
+          return {
+            id: b.id,
+            type: "image",
+            file: null,
+            url: b.media_url ?? "",
+            caption: b.caption ?? "",
+          };
+        }
+        if (b.type === "youtube") {
+          return {
+            id: b.id,
+            type: "youtube",
+            url: b.media_url ?? "",
+            caption: b.caption ?? "",
+          };
+        }
+        return {
+          id: b.id,
+          type: b.type as any,
+          content: b.content ?? "",
+        };
+      })
+  );
+
+  useEffect(() => {
+    // sécurité UX : quand on arrive, on est en édition
+    setMobileView("editor");
+  }, []);
+
   const addBlock = (type: Block["type"]) => {
     const newId = uid();
 
@@ -337,8 +394,6 @@ export default function AddArticleClient() {
     });
 
     setMobileView("editor");
-
-    // après render
     window.setTimeout(() => flashBlockAndScroll(newId), 50);
   };
 
@@ -350,8 +405,7 @@ export default function AddArticleClient() {
     setBlocks((prev) => {
       const i = prev.findIndex((b) => b.id === id);
       if (i === -1) return prev;
-      const b = prev[i];
-      const copy: Block = JSON.parse(JSON.stringify(b));
+      const copy: Block = JSON.parse(JSON.stringify(prev[i]));
       (copy as any).id = newId;
       const out = [...prev];
       out.splice(i + 1, 0, copy);
@@ -370,7 +424,7 @@ export default function AddArticleClient() {
     setBlocks((prev) =>
       prev.map((b) => {
         if (b.id !== blockId || b.type !== "image") return b;
-        const url = file ? URL.createObjectURL(file) : (b as any).url;
+        const url = file ? URL.createObjectURL(file) : b.url;
         return { ...b, file, url };
       })
     );
@@ -379,8 +433,7 @@ export default function AddArticleClient() {
 
   const onDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-    if (!over) return;
-    if (active.id === over.id) return;
+    if (!over || active.id === over.id) return;
 
     setBlocks((items) => {
       const oldIndex = items.findIndex((i) => i.id === active.id);
@@ -401,23 +454,27 @@ export default function AddArticleClient() {
   };
 
   const validate = async (): Promise<Validation> => {
-    const cleanTitle = title.trim();
-    if (!cleanTitle) return { ok: false, message: "Titre requis.", field: "title" };
-    if (!publishedDate) return { ok: false, message: "Date de publication requise.", field: "date" };
+    if (!title.trim()) return { ok: false, message: "Titre requis.", field: "title" };
+    if (!publishedDate) return { ok: false, message: "Date requise.", field: "date" };
     if (!computedSlug) return { ok: false, message: "Slug invalide.", field: "slug" };
 
-    const { data: existing, error } = await supabase.from("articles").select("id").eq("slug", computedSlug).maybeSingle();
+    const { data: existing, error } = await supabase
+      .from("articles")
+      .select("id")
+      .eq("slug", computedSlug)
+      .neq("id", initialArticle.id)
+      .maybeSingle();
+
     if (error) return { ok: false, message: error.message, field: "slug" };
-    if (existing) return { ok: false, message: "Slug déjà utilisé. Change-le (ex: ajoute un suffixe).", field: "slug" };
+    if (existing) return { ok: false, message: "Slug déjà utilisé par un autre article.", field: "slug" };
 
     const hasContent = blocks.some((b) => {
-      if (b.type === "image") return !!b.file || !!(b as any).url;
+      if (b.type === "image") return !!b.file || !!b.url;
       if (b.type === "youtube") return (b.url || "").trim().length > 0;
       return (b as any).content?.trim?.().length > 0;
     });
 
     if (!hasContent) return { ok: false, message: "Ajoute au moins un bloc non vide.", field: "blocks" };
-
     return { ok: true };
   };
 
@@ -430,39 +487,32 @@ export default function AddArticleClient() {
     if (!v.ok) {
       setSaving(false);
       setErr(v.message);
-      // Si user est sur preview mobile -> repasse en édition pour voir le champ
       setMobileView("editor");
       flashFieldAndScroll(v.field);
       return;
     }
 
-    const {
-      data: { user },
-      error: uErr,
-    } = await supabase.auth.getUser();
-
-    if (uErr || !user) {
-      setSaving(false);
-      setErr("Session invalide. Reconnecte-toi.");
-      setMobileView("editor");
-      flashFieldAndScroll("title");
-      return;
-    }
-
-    const { data: article, error: aErr } = await supabase
+    // update article
+    const { error: aErr } = await supabase
       .from("articles")
-      .insert({
+      .update({
         title: title.trim(),
         slug: computedSlug,
         published_date: publishedDate,
-        author_id: user.id,
       })
-      .select("id")
-      .single();
+      .eq("id", initialArticle.id);
 
-    if (aErr || !article) {
+    if (aErr) {
       setSaving(false);
-      setErr(aErr?.message || "Erreur création article.");
+      setErr(aErr.message);
+      return;
+    }
+
+    // reset blocks
+    const { error: delErr } = await supabase.from("article_blocks").delete().eq("article_id", initialArticle.id);
+    if (delErr) {
+      setSaving(false);
+      setErr(delErr.message);
       return;
     }
 
@@ -471,11 +521,12 @@ export default function AddArticleClient() {
       const b = blocks[i];
 
       if (b.type === "image") {
-        const file = b.file;
-        if (!file) continue;
-        const url = await uploadImage(article.id, b.id, file);
+        let url = b.url ?? "";
+        if (b.file) url = await uploadImage(initialArticle.id, b.id, b.file);
+        if (!url) continue;
+
         rows.push({
-          article_id: article.id,
+          article_id: initialArticle.id,
           type: "image",
           media_url: url,
           caption: (b.caption || "").trim() || null,
@@ -484,8 +535,9 @@ export default function AddArticleClient() {
       } else if (b.type === "youtube") {
         const url = (b.url || "").trim();
         if (!url) continue;
+
         rows.push({
-          article_id: article.id,
+          article_id: initialArticle.id,
           type: "youtube",
           media_url: url,
           caption: (b.caption || "").trim() || null,
@@ -494,8 +546,9 @@ export default function AddArticleClient() {
       } else {
         const content = ((b as any).content || "").trim();
         if (!content) continue;
+
         rows.push({
-          article_id: article.id,
+          article_id: initialArticle.id,
           type: b.type,
           content,
           sort_index: i,
@@ -511,7 +564,7 @@ export default function AddArticleClient() {
     }
 
     setSaving(false);
-    setMsg("Article créé.");
+    setMsg("Modifications enregistrées.");
 
     const year = yearFromDate(publishedDate);
     window.location.href = `/dates/${year}/${computedSlug}`;
@@ -520,38 +573,18 @@ export default function AddArticleClient() {
   const previewBlocks = useMemo(() => {
     return blocks.map((b, i) => {
       if (b.type === "image") {
-        return {
-          id: b.id,
-          type: "image",
-          content: null,
-          media_url: (b as any).url ?? null,
-          caption: (b as any).caption ?? null,
-          sort_index: i,
-        };
+        return { id: b.id, type: "image", content: null, media_url: b.url ?? null, caption: b.caption ?? null, sort_index: i };
       }
       if (b.type === "youtube") {
-        return {
-          id: b.id,
-          type: "youtube",
-          content: null,
-          media_url: (b as any).url || null,
-          caption: (b as any).caption ?? null,
-          sort_index: i,
-        };
+        return { id: b.id, type: "youtube", content: null, media_url: b.url || null, caption: b.caption ?? null, sort_index: i };
       }
-      return {
-        id: b.id,
-        type: b.type,
-        content: (b as any).content ?? null,
-        media_url: null,
-        caption: null,
-        sort_index: i,
-      };
+      return { id: b.id, type: b.type, content: (b as any).content ?? null, media_url: null, caption: null, sort_index: i };
     });
   }, [blocks]);
 
-  const fieldBox = (active: boolean) =>
-    active ? "ring-2 ring-red-500/60 animate-pulse" : "";
+  const previewYear = useMemo(() => (publishedDate ? yearFromDate(publishedDate) : "—"), [publishedDate]);
+
+  const fieldBox = (active: boolean) => (active ? "ring-2 ring-red-500/60 animate-pulse" : "");
 
   return (
     <main className="min-h-screen bg-black text-white pt-32 lg:pt-40 pb-20 px-6">
@@ -561,8 +594,8 @@ export default function AddArticleClient() {
         <div className="flex flex-col gap-10 lg:flex-row lg:items-start">
           {/* LEFT: Editor */}
           <div className={`w-full lg:w-1/2 ${mobileView === "preview" ? "hidden lg:block" : "block"}`}>
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-light tracking-wide">Ajouter un article</h1>
-            <p className="mt-4 text-white/60 text-sm md:text-base">Éditeur V3 : drag’n drop des blocs + preview live.</p>
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-light tracking-wide">Modifier un article</h1>
+            <p className="mt-4 text-white/60 text-sm md:text-base">Drag’n drop des blocs + preview live.</p>
 
             {(err || msg) && (
               <div
@@ -606,7 +639,6 @@ export default function AddArticleClient() {
                     ref={slugRef}
                     value={slugInput}
                     onChange={(e) => setSlugInput(e.target.value)}
-                    placeholder={slugify(title) || "ex: 13-juin"}
                     className="mt-2 w-full bg-transparent border border-white/15 px-4 py-3 text-sm outline-none focus:border-white/40 transition"
                   />
                   <div className="mt-2 text-xs text-white/40">
@@ -678,7 +710,7 @@ export default function AddArticleClient() {
                     disabled={saving}
                     className="border border-white/20 px-6 py-3 text-xs tracking-widest uppercase hover:bg-white hover:text-black transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {saving ? "Création..." : "Publier l’article"}
+                    {saving ? "Enregistrement..." : "Enregistrer"}
                   </button>
                 </div>
               </div>
@@ -708,12 +740,6 @@ export default function AddArticleClient() {
 
               <div className="mt-8 sm:mt-10">
                 <ArticleRenderer blocks={previewBlocks as any} />
-              </div>
-
-              <div className="mt-12 flex justify-end">
-                <div className="text-xs tracking-[0.4em] uppercase text-white/40">
-                  Auteur : <span className="text-white/70">Moi</span>
-                </div>
               </div>
             </div>
 
