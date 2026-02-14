@@ -5,7 +5,9 @@ import { getSupabaseEnv } from "./env";
 export function createClient() {
   const env = getSupabaseEnv();
   if (!env) {
-    throw new Error("Supabase env missing: NEXT_PUBLIC_SUPABASE_URL + (PUBLISHABLE_KEY or ANON_KEY)");
+    throw new Error(
+      "Supabase env missing: NEXT_PUBLIC_SUPABASE_URL + (PUBLISHABLE_KEY or ANON_KEY)"
+    );
   }
 
   const cookieStore = cookies();
@@ -17,10 +19,12 @@ export function createClient() {
       },
       setAll(cookiesToSet) {
         try {
-          cookiesToSet.forEach(async ({ name, value, options }) =>
-            (await cookieStore).set(name, value, options)
-          );
-        } catch {}
+          cookiesToSet.forEach(async ({ name, value, options }) => {
+            (await cookieStore).set(name, value, options);
+          });
+        } catch {
+          // Dans certains contextes Server Components, set peut throw: OK.
+        }
       },
     },
   });

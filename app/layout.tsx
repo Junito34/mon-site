@@ -1,7 +1,8 @@
 import "./globals.css";
 import { Playfair_Display } from "next/font/google";
 import SmoothScroll from "@/components/SmoothScroll";
-import { AuthProvider } from "@/context/AuthContext";
+import Providers from "./providers";
+import { getInitialUser } from "@/lib/auth/getInitialUser";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -14,14 +15,20 @@ export const metadata = {
   description: "Hommage à Jonathan Denis-Quanquin",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const initialUser = await getInitialUser();
+
   return (
     <html lang="fr">
       <body className={`${playfair.className} bg-black text-white overflow-x-hidden`}>
-        <AuthProvider>
+        <Providers initialUser={initialUser}>
           <SmoothScroll />
           {children}
-        </AuthProvider>
+        </Providers>
       </body>
     </html>
   );

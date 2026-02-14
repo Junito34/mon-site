@@ -10,3 +10,20 @@ body {
 * {
   box-sizing: border-box;
 }
+
+/* ===== Modal hardening (anti glass / anti opacity leak) ===== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+}
+
+.modal-surface {
+  background: #0b0b0b !important; /* opaque */
+  opacity: 1 !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  mix-blend-mode: normal !important;
+  isolation: isolate; /* empêche les effets de blend hérités */
+}

@@ -1,96 +1,56 @@
-import fs from "fs";
-import path from "path";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import DatesMoreClient from "./DatesMoreClient";
+import { createClient } from "@/lib/supabase/server";
+
+export const dynamic = "force-dynamic";
 
 type PageLink = {
   title: string;
   href: string;
   year: string;
   author?: string;
-  date?: string; // "YYYY-MM-DD"
+  publishedDate?: string | null;
 };
 
-function isYearFolder(name: string) {
-  return /^\d{4}$/.test(name);
-}
+export default async function DatesMorePage() {
+  const supabase = createClient();
 
-function safeReadJson(filePath: string) {
-  try {
-    const raw = fs.readFileSync(filePath, "utf-8");
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
+  const { data, error } = await supabase
+    .from("articles")
+    .select(
+      `
+      id,
+      title,
+      slug,
+      published_date,
+      created_at,
+      profiles!articles_author_id_fkey (
+        full_name
+      )
+    `
+    )
+    .order("published_date", { ascending: false })
+    .order("created_at", { ascending: false });
 
-export default function DatesMorePage() {
-  const datesDir = path.join(process.cwd(), "app", "dates");
-  const yearEntries = fs.readdirSync(datesDir, { withFileTypes: true });
-
-  const pages: PageLink[] = [];
-
-  for (const yearEntry of yearEntries) {
-    if (!yearEntry.isDirectory() || !isYearFolder(yearEntry.name)) continue;
-
-    const year = yearEntry.name;
-    const yearDir = path.join(datesDir, year);
-
-    // 1) Cas "ancien" : article directement dans /dates/YYYY/page.tsx
-    const directPage = path.join(yearDir, "page.tsx");
-    const directMeta = path.join(yearDir, "meta.json");
-    if (fs.existsSync(directPage)) {
-      const meta = fs.existsSync(directMeta) ? safeReadJson(directMeta) : null;
-      pages.push({
+  // fallback safe
+  const pages: PageLink[] =
+    (data ?? []).map((a: any) => {
+      const dateStr = a.published_date ?? a.created_at;
+      const year = new Date(dateStr).getFullYear().toString();
+      return {
+        title: a.title,
         year,
-        href: `/dates/${year}`,
-        title: meta?.title || year,
-        author: meta?.author,
-        date: meta?.date, // optionnel
-      });
-    }
-
-    // 2) Cas "nouveau" : plusieurs articles /dates/YYYY/<slug>/page.tsx
-    const subEntries = fs.readdirSync(yearDir, { withFileTypes: true });
-    for (const sub of subEntries) {
-      if (!sub.isDirectory()) continue;
-
-      const slug = sub.name;
-      const articleDir = path.join(yearDir, slug);
-
-      const articlePage = path.join(articleDir, "page.tsx");
-      if (!fs.existsSync(articlePage)) continue;
-
-      const metaPath = path.join(articleDir, "meta.json");
-      const meta = fs.existsSync(metaPath) ? safeReadJson(metaPath) : null;
-
-      pages.push({
-        year,
-        href: `/dates/${year}/${slug}`,
-        title: meta?.title || `${year} — ${slug.replace(/-/g, " ")}`,
-        author: meta?.author,
-        date: meta?.date,
-      });
-    }
-  }
-
-  // Tri : date si présente, sinon année
-  pages.sort((a, b) => {
-    const ad = a.date ? new Date(a.date).getTime() : NaN;
-    const bd = b.date ? new Date(b.date).getTime() : NaN;
-
-    if (!Number.isNaN(ad) && !Number.isNaN(bd)) return bd - ad;
-    if (!Number.isNaN(ad) && Number.isNaN(bd)) return -1;
-    if (Number.isNaN(ad) && !Number.isNaN(bd)) return 1;
-
-    return Number(b.year) - Number(a.year);
-  });
+        author: a.profiles?.full_name ?? undefined,
+        publishedDate: a.published_date,
+        href: `/dates/${year}/${a.slug}`,
+      };
+    }) ?? [];
 
   return (
     <>
       <Navbar />
-      <DatesMoreClient pages={pages} />
+      <DatesMoreClient pages={pages} serverError={error?.message ?? null} />
       <Footer />
     </>
   );

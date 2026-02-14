@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 export type UserRole = "admin" | "user";
@@ -16,17 +16,26 @@ export interface User {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  ready: boolean; // ✅ nouveau : indique "l'état auth est résolu"
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const supabase = createClient();
+export function AuthProvider({
+  children,
+  initialUser,
+}: {
+  children: React.ReactNode;
+  initialUser?: User | null;
+}) {
+  const supabase = useMemo(() => createClient(), []);
 
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  // initialUser !== undefined signifie : SSR a déjà tranché (connecté ou non)
+  const [user, setUser] = useState<User | null>(initialUser ?? null);
+  const [loading, setLoading] = useState<boolean>(initialUser === undefined);
+  const [ready, setReady] = useState<boolean>(initialUser !== undefined);
 
   const loadUser = async () => {
     setLoading(true);
@@ -38,10 +47,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!authUser) {
       setUser(null);
       setLoading(false);
+      setReady(true);
       return;
     }
 
-    // Récupère le profile (role, name, avatar)
     const { data: profile } = await supabase
       .from("profiles")
       .select("id, full_name, email, role, avatar_url")
@@ -50,33 +59,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     setUser({
       id: authUser.id,
-      name: profile?.full_name ?? authUser.user_metadata?.full_name ?? authUser.user_metadata?.name ?? null,
+      name:
+        profile?.full_name ??
+        authUser.user_metadata?.full_name ??
+        authUser.user_metadata?.name ??
+        null,
       email: profile?.email ?? authUser.email ?? null,
       role: (profile?.role as UserRole) ?? "user",
       avatar_url: profile?.avatar_url ?? authUser.user_metadata?.avatar_url ?? null,
     });
 
     setLoading(false);
+    setReady(true);
   };
 
   useEffect(() => {
-    // load initial
-    loadUser();
+    // Si on n’a pas eu d’init SSR, on charge côté client
+    if (initialUser === undefined) {
+      loadUser();
+    } else {
+      // SSR a déjà décidé => ready = true (déjà), pas besoin de loader au mount
+      setReady(true);
+      setLoading(false);
+    }
 
     // écoute les changements de session
     const { data: sub } = supabase.auth.onAuthStateChange(() => {
       loadUser();
     });
 
-    return () => {
-      sub.subscription.unsubscribe();
-    };
+    return () => sub.subscription.unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const logout = async () => {
     await supabase.auth.signOut();
-    // optionnel : rediriger
     window.location.href = "/";
   };
 
@@ -85,7 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, logout, refresh }}>
+    <AuthContext.Provider value={{ user, loading, ready, logout, refresh }}>
       {children}
     </AuthContext.Provider>
   );
