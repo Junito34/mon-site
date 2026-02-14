@@ -72,7 +72,7 @@ export default function DatesMoreClient({
         <div className="flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
           <div>
             <h1 className="text-4xl md:text-5xl font-light tracking-wide">
-              Toutes les dates
+              Tous les articles
             </h1>
             <p className="mt-4 text-white/60 text-sm md:text-base">
               Retrouvez ici l’ensemble des articles. Recherchez par année, titre ou auteur.

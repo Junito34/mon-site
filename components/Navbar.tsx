@@ -100,8 +100,8 @@ export default function Navbar() {
             Qui est-il?
           </a>
 
-          <a href="/photos" onClick={closeAll} className="hover:opacity-60 transition">
-            Photos
+          <a href="/galerie" onClick={closeAll} className="hover:opacity-60 transition">
+            Galerie
           </a>
 
           {/* LES ARTICLES */}
