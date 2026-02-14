@@ -13,6 +13,7 @@ type CommentRow = {
   profiles: {
     full_name: string | null;
     role: "admin" | "user" | null;
+    avatar_url: string | null;
   } | null;
 };
 
@@ -20,17 +21,55 @@ type CommentUI = {
   id: string;
   authorName: string;
   authorRole: "admin" | "user";
+  authorAvatarUrl: string | null;
   message: string;
   createdAt: string;
   userId: string;
 };
 
+function formatFRStable(iso: string) {
+  try {
+    return new Intl.DateTimeFormat("fr-FR", {
+      timeZone: "Europe/Paris",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(iso));
+  } catch {
+    return iso;
+  }
+}
+
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "U";
+  const a = parts[0]?.[0] ?? "U";
+  const b = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? "" : "";
+  return (a + b).toUpperCase();
+}
+
 export default function Comments({ articleId }: { articleId?: string }) {
   const supabase = createClient();
   const { user } = useAuth();
-
   const pathname = usePathname();
-  const canonicalArticleId = (articleId ?? pathname).replace(/^\//, "");
+
+  // ✅ Canonical ID "stable" pour éviter les mismatches :
+  // - si articleId est fourni => on l’utilise
+  // - sinon, on le calcule APRÈS montage depuis pathname
+  const [canonicalArticleId, setCanonicalArticleId] = useState(
+    (articleId ?? "").replace(/^\//, "")
+  );
+
+  useEffect(() => {
+    if (articleId) {
+      setCanonicalArticleId(articleId.replace(/^\//, ""));
+      return;
+    }
+    // fallback client-only
+    setCanonicalArticleId((pathname ?? "").replace(/^\//, ""));
+  }, [articleId, pathname]);
 
   const [message, setMessage] = useState("");
   const [comments, setComments] = useState<CommentUI[]>([]);
@@ -59,7 +98,7 @@ export default function Comments({ articleId }: { articleId?: string }) {
     return user.id === c.userId;
   };
 
-  const fetchComments = async () => {
+  const fetchComments = async (id: string) => {
     setLoading(true);
     setError(null);
 
@@ -73,11 +112,12 @@ export default function Comments({ articleId }: { articleId?: string }) {
         user_id,
         profiles:profiles (
           full_name,
-          role
+          role,
+          avatar_url
         )
       `
       )
-      .eq("article_id", canonicalArticleId)
+      .eq("article_id", id)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -92,6 +132,7 @@ export default function Comments({ articleId }: { articleId?: string }) {
       userId: r.user_id,
       authorName: r.profiles?.full_name || "Utilisateur",
       authorRole: r.profiles?.role === "admin" ? "admin" : "user",
+      authorAvatarUrl: r.profiles?.avatar_url ?? null,
       message: r.content,
       createdAt: r.created_at,
     }));
@@ -100,13 +141,17 @@ export default function Comments({ articleId }: { articleId?: string }) {
     setLoading(false);
   };
 
+  // ✅ fetch quand on a un canonicalArticleId valide
   useEffect(() => {
-    fetchComments();
+    if (!canonicalArticleId) return;
+    fetchComments(canonicalArticleId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canonicalArticleId]);
 
-  // ✅ Realtime: refresh dès qu'il se passe quelque chose sur cet article
+  // ✅ Realtime : subscribe seulement si id OK
   useEffect(() => {
+    if (!canonicalArticleId) return;
+
     const channel = supabase
       .channel(`comments:${canonicalArticleId}`)
       .on(
@@ -117,9 +162,7 @@ export default function Comments({ articleId }: { articleId?: string }) {
           table: "comments",
           filter: `article_id=eq.${canonicalArticleId}`,
         },
-        () => {
-          fetchComments();
-        }
+        () => fetchComments(canonicalArticleId)
       )
       .subscribe();
 
@@ -129,8 +172,9 @@ export default function Comments({ articleId }: { articleId?: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canonicalArticleId]);
 
-  // ✅ Highlight + scroll smooth
+  // ✅ Highlight + scroll smooth (client-only)
   useEffect(() => {
+    if (!canonicalArticleId) return;
     if (typeof window === "undefined") return;
 
     const fromQuery = new URLSearchParams(window.location.search).get("comment");
@@ -159,6 +203,8 @@ export default function Comments({ articleId }: { articleId?: string }) {
 
   const submit = async () => {
     if (!user) return;
+    if (!canonicalArticleId) return;
+
     const clean = message.trim();
     if (!clean) return;
 
@@ -180,8 +226,8 @@ export default function Comments({ articleId }: { articleId?: string }) {
     setMessage("");
     setPosting(false);
 
-    // Au cas où realtime n’est pas dispo
-    fetchComments();
+    // au cas où realtime lag
+    fetchComments(canonicalArticleId);
   };
 
   const startEdit = (c: CommentUI) => {
@@ -211,7 +257,7 @@ export default function Comments({ articleId }: { articleId?: string }) {
     }
 
     cancelEdit();
-    fetchComments();
+    if (canonicalArticleId) fetchComments(canonicalArticleId);
   };
 
   const deleteComment = async (id: string) => {
@@ -227,22 +273,26 @@ export default function Comments({ articleId }: { articleId?: string }) {
       return;
     }
 
-    fetchComments();
+    if (canonicalArticleId) fetchComments(canonicalArticleId);
   };
 
   return (
-    <section className="w-full max-w-4xl mx-auto px-6 py-16">
-      <div className="flex items-end justify-between gap-6">
+    <section className="w-full max-w-4xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <h3 className="text-xl md:text-2xl font-light tracking-wide">
           Commentaires
         </h3>
-        <span className="text-xs tracking-widest uppercase text-white/50">
+
+        <span
+          className="text-[10px] sm:text-xs tracking-widest uppercase text-white/50 break-words"
+          suppressHydrationWarning
+        >
           Article: {canonicalArticleId}
         </span>
       </div>
 
       {/* Form */}
-      <div className="mt-8 border-t border-white/10 pt-8">
+      <div className="mt-6 sm:mt-8 border-t border-white/10 pt-6 sm:pt-8">
         {error && (
           <div className="mb-5 border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
             {error}
@@ -261,10 +311,11 @@ export default function Comments({ articleId }: { articleId?: string }) {
               placeholder="Écrire un commentaire…"
               className="w-full min-h-[110px] bg-transparent border border-white/15 px-4 py-3 text-sm outline-none focus:border-white/40 transition"
             />
+
             <div className="flex justify-end">
               <button
                 onClick={submit}
-                disabled={posting}
+                disabled={posting || !canonicalArticleId}
                 className="border border-white/20 px-5 py-2 text-xs tracking-widest uppercase hover:bg-white hover:text-black transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {posting ? "Publication..." : "Publier"}
@@ -275,11 +326,13 @@ export default function Comments({ articleId }: { articleId?: string }) {
       </div>
 
       {/* Liste */}
-      <div className="mt-10 space-y-4">
+      <div className="mt-8 sm:mt-10 space-y-4">
         {loading ? (
           <p className="text-white/40 text-sm">Chargement…</p>
         ) : sorted.length === 0 ? (
-          <p className="text-white/40 text-sm">Aucun commentaire pour l’instant.</p>
+          <p className="text-white/40 text-sm">
+            Aucun commentaire pour l’instant.
+          </p>
         ) : (
           sorted.map((c) => {
             const editable = canModerate(c);
@@ -290,45 +343,66 @@ export default function Comments({ articleId }: { articleId?: string }) {
               <div
                 id={`comment-${c.id}`}
                 key={c.id}
-                className={`border border-white/10 bg-white/5 backdrop-blur-sm px-5 py-4 transition ${
+                className={`border border-white/10 bg-white/5 backdrop-blur-sm px-4 sm:px-5 py-4 transition ${
                   highlighted ? "ring-1 ring-white/40 bg-white/10" : ""
                 }`}
               >
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="text-xs tracking-widest uppercase text-white/70">
-                      {c.authorName}
-                    </div>
-
-                    {c.authorRole === "admin" && (
-                      <span className="text-[10px] tracking-widest uppercase px-2 py-1 border border-white/20 bg-white/10 text-white/80">
-                        Admin
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-4">
-                    <div className="text-xs text-white/40">
-                      {new Date(c.createdAt).toLocaleString("fr-FR")}
-                    </div>
-
-                    {editable && !isEditing && (
-                      <div className="flex items-center gap-3">
-                        <button
-                          onClick={() => startEdit(c)}
-                          className="text-xs tracking-widest uppercase text-white/60 hover:text-white transition"
-                        >
-                          Éditer
-                        </button>
-                        <button
-                          onClick={() => deleteComment(c.id)}
-                          className="text-xs tracking-widest uppercase text-white/60 hover:text-white transition"
-                        >
-                          Supprimer
-                        </button>
+                {/* Header responsive */}
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex items-start gap-3 min-w-0">
+                    {/* Avatar */}
+                    {c.authorAvatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={c.authorAvatarUrl}
+                        alt=""
+                        className="w-9 h-9 rounded-full border border-white/10 object-cover shrink-0"
+                      />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full border border-white/15 bg-white/5 flex items-center justify-center text-[11px] tracking-widest uppercase text-white/70 shrink-0">
+                        {initials(c.authorName)}
                       </div>
                     )}
+
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="text-xs tracking-widest uppercase text-white/80 break-words">
+                          {c.authorName}
+                        </div>
+
+                        {c.authorRole === "admin" && (
+                          <span className="text-[10px] tracking-widest uppercase px-2 py-1 border border-white/20 bg-white/10 text-white/80">
+                            Admin
+                          </span>
+                        )}
+                      </div>
+
+                      <div
+                        className="mt-1 text-xs text-white/40"
+                        suppressHydrationWarning
+                      >
+                        {formatFRStable(c.createdAt)}
+                      </div>
+                    </div>
                   </div>
+
+                  {/* Actions */}
+                  {editable && !isEditing && (
+                    <div className="flex flex-wrap gap-3 sm:justify-end">
+                      <button
+                        onClick={() => startEdit(c)}
+                        className="text-xs tracking-widest uppercase text-white/60 hover:text-white transition"
+                      >
+                        Éditer
+                      </button>
+                      <button
+                        onClick={() => deleteComment(c.id)}
+                        className="text-xs tracking-widest uppercase text-white/60 hover:text-white transition"
+                      >
+                        Supprimer
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {!isEditing ? (
@@ -342,7 +416,8 @@ export default function Comments({ articleId }: { articleId?: string }) {
                       onChange={(e) => setEditingValue(e.target.value)}
                       className="w-full min-h-[110px] bg-transparent border border-white/15 px-4 py-3 text-sm outline-none focus:border-white/40 transition"
                     />
-                    <div className="flex justify-end gap-3">
+
+                    <div className="flex flex-col sm:flex-row justify-end gap-3">
                       <button
                         onClick={cancelEdit}
                         className="border border-white/20 px-5 py-2 text-xs tracking-widest uppercase hover:bg-white/10 transition"

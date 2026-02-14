@@ -1,4 +1,3 @@
-import Image from "next/image";
 import ArticleImageSection from "@/components/ArticleImageSection";
 
 type Block = {
@@ -13,11 +12,14 @@ type Block = {
 function getYoutubeId(url: string) {
   try {
     const u = new URL(url);
+
     if (u.hostname.includes("youtu.be")) return u.pathname.replace("/", "");
+
     const v = u.searchParams.get("v");
     if (v) return v;
-    // fallback for embed urls
-    const parts = u.pathname.split("/");
+
+    // embed urls fallback: /embed/<id>
+    const parts = u.pathname.split("/").filter(Boolean);
     return parts[parts.length - 1] || null;
   } catch {
     return null;
@@ -26,13 +28,24 @@ function getYoutubeId(url: string) {
 
 export default function ArticleRenderer({ blocks }: { blocks: Block[] }) {
   return (
-    <div className="space-y-6 text-white/80 leading-relaxed text-base md:text-lg">
+    <div
+      className="
+        text-white/80 leading-relaxed
+        text-base md:text-lg
+        space-y-5 md:space-y-6
+      "
+    >
       {blocks.map((b) => {
         if (b.type === "title") {
           return (
             <h2
               key={b.id}
-              className="text-2xl md:text-3xl font-light tracking-wide text-white/90 pt-6"
+              className="
+                pt-6 md:pt-8
+                text-white/90 font-light tracking-wide
+                text-xl sm:text-2xl md:text-3xl
+                leading-snug
+              "
             >
               {b.content}
             </h2>
@@ -51,7 +64,13 @@ export default function ArticleRenderer({ blocks }: { blocks: Block[] }) {
           return (
             <blockquote
               key={b.id}
-              className="border-l border-white/20 pl-5 py-1 text-white/70 italic"
+              className="
+                border-l border-white/20
+                pl-4 md:pl-5
+                py-1
+                text-white/70 italic
+                text-[0.95rem] md:text-lg
+              "
             >
               {b.content}
             </blockquote>
@@ -59,11 +78,11 @@ export default function ArticleRenderer({ blocks }: { blocks: Block[] }) {
         }
 
         if (b.type === "image" && b.media_url) {
-        return (
-            <div key={b.id}>
-            <ArticleImageSection image={b.media_url} title={b.caption} />
+          return (
+            <div key={b.id} className="pt-2 md:pt-3">
+              <ArticleImageSection image={b.media_url} title={b.caption ?? undefined} />
             </div>
-        );
+          );
         }
 
         if (b.type === "youtube" && b.media_url) {
@@ -71,7 +90,7 @@ export default function ArticleRenderer({ blocks }: { blocks: Block[] }) {
           if (!id) return null;
 
           return (
-            <div key={b.id} className="pt-4">
+            <div key={b.id} className="pt-3 md:pt-4">
               <div className="relative w-full aspect-video border border-white/10 bg-white/5 overflow-hidden">
                 <iframe
                   className="absolute inset-0 w-full h-full"
@@ -81,8 +100,9 @@ export default function ArticleRenderer({ blocks }: { blocks: Block[] }) {
                   allowFullScreen
                 />
               </div>
+
               {b.caption && (
-                <div className="mt-3 text-xs tracking-widest uppercase text-white/40">
+                <div className="mt-3 text-[10px] md:text-xs tracking-[0.3em] uppercase text-white/40">
                   {b.caption}
                 </div>
               )}

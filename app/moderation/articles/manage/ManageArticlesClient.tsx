@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import ConfirmModal from "@/components/ConfirmModal";
 
@@ -13,11 +13,27 @@ type Article = {
 };
 
 function extractStoragePathFromPublicUrl(publicUrl: string, bucket: string) {
-  // attend: .../storage/v1/object/public/<bucket>/<path>
   const marker = `/storage/v1/object/public/${bucket}/`;
   const idx = publicUrl.indexOf(marker);
   if (idx === -1) return null;
   return publicUrl.slice(idx + marker.length);
+}
+
+function formatFRStable(iso: string) {
+  try {
+    const d = new Date(iso);
+    const fmt = new Intl.DateTimeFormat("fr-FR", {
+      timeZone: "Europe/Paris",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    return fmt.format(d);
+  } catch {
+    return iso;
+  }
 }
 
 export default function ManageArticlesClient({
@@ -28,6 +44,10 @@ export default function ManageArticlesClient({
   initialError: string | null;
 }) {
   const supabase = createClient();
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const [articles, setArticles] = useState<Article[]>(initialArticles);
   const [error, setError] = useState<string | null>(initialError);
 
@@ -55,7 +75,6 @@ export default function ManageArticlesClient({
     setDeleting(true);
 
     try {
-      // 1) récupérer toutes les images liées à cet article
       const { data: imgBlocks, error: imgErr } = await supabase
         .from("article_blocks")
         .select("media_url, type")
@@ -68,25 +87,20 @@ export default function ManageArticlesClient({
         .map((b: any) => (b.media_url as string) || "")
         .filter(Boolean);
 
-      // 2) supprimer les fichiers du storage
       const paths = urls
         .map((url) => extractStoragePathFromPublicUrl(url, BUCKET))
         .filter((p): p is string => !!p);
 
-      // NOTE: supabase remove accepte un tableau vide sans souci, mais on garde clean
       if (paths.length > 0) {
         const { error: sErr } = await supabase.storage.from(BUCKET).remove(paths);
         if (sErr) throw sErr;
       }
 
-      // 3) supprimer blocks + article (transaction DB)
       const { error: rpcErr } = await supabase.rpc("delete_article_cascade", {
         p_article_id: target.id,
       });
-
       if (rpcErr) throw rpcErr;
 
-      // 4) UI
       setArticles((prev) => prev.filter((x) => x.id !== target.id));
       setModalOpen(false);
       setTarget(null);
@@ -98,22 +112,72 @@ export default function ManageArticlesClient({
   };
 
   return (
-    <main className="min-h-screen bg-black text-white pt-40 pb-20 px-6">
+    <main className="min-h-screen bg-black text-white pt-32 md:pt-40 pb-16 md:pb-20 px-4 sm:px-6">
       <div className="max-w-5xl mx-auto">
-        <h1 className="text-4xl md:text-5xl font-light tracking-wide">
+        <h1 className="text-3xl sm:text-4xl md:text-5xl font-light tracking-wide">
           Gestion des articles
         </h1>
-        <p className="mt-4 text-white/60 text-sm md:text-base">
+        <p className="mt-3 md:mt-4 text-white/60 text-sm md:text-base">
           Éditer ou supprimer des articles (suppression complète : DB + images).
         </p>
 
         {error && (
-          <div className="mt-8 border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+          <div className="mt-6 md:mt-8 border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
             {error}
           </div>
         )}
 
-        <div className="mt-12 border border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden">
+        {/* ===== Mobile: cartes ===== */}
+        <div className="mt-10 md:hidden space-y-4">
+          {articles.length === 0 ? (
+            <div className="border border-white/10 bg-white/5 backdrop-blur-sm px-5 py-5 text-white/50">
+              Aucun article pour l’instant.
+            </div>
+          ) : (
+            articles.map((a) => (
+              <div
+                key={a.id}
+                className="border border-white/10 bg-white/5 backdrop-blur-sm p-5"
+              >
+                <div className="text-white/90 font-light text-lg leading-snug break-words">
+                  {a.title}
+                </div>
+
+                {/* slug => client only */}
+                <div className="mt-2 text-[11px] tracking-[0.3em] uppercase text-white/40 break-words">
+                  {mounted ? a.slug : ""}
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-2 text-xs">
+                  <div className="text-white/40 tracking-widest uppercase">Créé le</div>
+                  {/* date => client only */}
+                  <div className="text-white/75">
+                    {mounted ? formatFRStable(a.created_at) : ""}
+                  </div>
+                </div>
+
+                <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <a
+                    href={`/moderation/articles/edit/${a.id}`}
+                    className="w-full text-center border border-white/20 px-4 py-3 text-xs tracking-widest uppercase hover:bg-white hover:text-black transition"
+                  >
+                    Éditer
+                  </a>
+
+                  <button
+                    onClick={() => askDelete(a)}
+                    className="w-full border border-white/20 px-4 py-3 text-xs tracking-widest uppercase hover:bg-white hover:text-black transition"
+                  >
+                    Supprimer
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* ===== Desktop: tableau ===== */}
+        <div className="mt-12 border border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden hidden md:block">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-white/10 text-white/60">
               <tr>
@@ -140,18 +204,18 @@ export default function ManageArticlesClient({
                 articles.map((a) => (
                   <tr key={a.id} className="border-b border-white/5">
                     <td className="px-6 py-4 text-white/85">
-                      {a.title}
-                      <div className="mt-2 text-xs tracking-[0.3em] uppercase text-white/40">
-                        {a.slug}
+                      <div className="break-words">{a.title}</div>
+                      <div className="mt-2 text-xs tracking-[0.3em] uppercase text-white/40 break-words">
+                        {mounted ? a.slug : ""}
                       </div>
                     </td>
 
                     <td className="px-6 py-4 text-white/70">
-                      {new Date(a.created_at).toLocaleString("fr-FR")}
+                      {mounted ? formatFRStable(a.created_at) : ""}
                     </td>
 
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-wrap items-center gap-3">
                         <a
                           href={`/moderation/articles/edit/${a.id}`}
                           className="border border-white/20 px-4 py-2 text-xs tracking-widest uppercase hover:bg-white hover:text-black transition"

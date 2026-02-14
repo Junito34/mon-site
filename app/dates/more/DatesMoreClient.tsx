@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import SearchBar from "@/components/SearchBar";
 import Pagination from "@/components/Pagination";
 
@@ -19,40 +19,27 @@ export default function DatesMoreClient({
   serverError,
 }: {
   pages: PageLink[];
-  serverError?: string | null;
+  serverError: string | null;
 }) {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
 
-  // tri : récent -> ancien (année puis date)
-  const sorted = useMemo(() => {
-    const copy = [...pages];
-    copy.sort((a, b) => {
-      const ay = parseInt(a.year, 10);
-      const by = parseInt(b.year, 10);
-      if (by !== ay) return by - ay;
-
-      const ad = a.publishedDate ? new Date(a.publishedDate).getTime() : 0;
-      const bd = b.publishedDate ? new Date(b.publishedDate).getTime() : 0;
-      return bd - ad;
-    });
-    return copy;
-  }, [pages]);
-
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
-    if (!s) return sorted;
+    if (!s) return pages;
 
-    return sorted.filter((p) => {
+    return pages.filter((p) => {
       return (
         p.title.toLowerCase().includes(s) ||
         p.year.toLowerCase().includes(s) ||
         (p.author?.toLowerCase().includes(s) ?? false)
       );
     });
-  }, [q, sorted]);
+  }, [q, pages]);
 
-  useEffect(() => setPage(1), [q]);
+  useEffect(() => {
+    setPage(1);
+  }, [q]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
 
@@ -66,20 +53,21 @@ export default function DatesMoreClient({
   }, [page, totalPages]);
 
   return (
-    <main className="min-h-screen bg-black text-white pt-40 pb-20 px-6">
+    <main className="min-h-screen bg-black text-white pt-32 md:pt-40 pb-16 md:pb-20 px-4 sm:px-6">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
+        <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
           <div>
-            <h1 className="text-4xl md:text-5xl font-light tracking-wide">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-light tracking-wide">
               Tous les articles
             </h1>
-            <p className="mt-4 text-white/60 text-sm md:text-base">
-              Retrouvez ici l’ensemble des articles. Recherchez par année, titre ou auteur.
+            <p className="mt-3 md:mt-4 text-white/60 text-sm md:text-base">
+              Retrouvez ici l’ensemble des pages. Recherchez par année, titre ou auteur.
             </p>
           </div>
 
-          <div className="w-full md:w-90">
+          {/* Search */}
+          <div className="w-full md:w-[360px]">
             <SearchBar
               value={q}
               onChange={setQ}
@@ -89,38 +77,49 @@ export default function DatesMoreClient({
           </div>
         </div>
 
+        {/* Server error (si besoin) */}
         {serverError && (
-          <div className="mt-10 border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+          <div className="mt-8 border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
             {serverError}
           </div>
         )}
 
         {/* Liste */}
-        <div className="mt-14 border-t border-white/10 pt-10">
+        <div className="mt-10 md:mt-14 border-t border-white/10 pt-8 md:pt-10">
           {paged.length === 0 ? (
-            <p className="text-white/50">Aucun résultat. Essayez un autre mot-clé.</p>
+            <p className="text-white/50 text-sm">
+              Aucun résultat. Essayez un autre mot-clé.
+            </p>
           ) : (
-            <ul className="space-y-4">
+            <ul className="space-y-3 sm:space-y-4">
               {paged.map((p) => (
                 <li key={p.href}>
                   <a
                     href={p.href}
-                    className="block border border-white/10 bg-white/5 hover:bg-white/10 transition px-6 py-5"
+                    className="block border border-white/10 bg-white/5 hover:bg-white/10 transition px-4 sm:px-6 py-4 sm:py-5"
                   >
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                      <div>
-                        <div className="text-xs tracking-[0.3em] uppercase text-white/50">
+                    {/* Mobile: tout en colonne, Desktop: split */}
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="text-[10px] sm:text-xs tracking-[0.3em] uppercase text-white/50">
                           {p.year}
                           {p.author ? ` — ${p.author}` : ""}
                         </div>
-                        <div className="mt-2 text-lg md:text-xl font-light text-white/85">
+
+                        <div className="mt-2 text-base sm:text-lg md:text-xl font-light text-white/85 break-words">
                           {p.title}
                         </div>
                       </div>
 
-                      <div className="text-xs tracking-[0.3em] uppercase text-white/50">
+                      {/* “Ouvrir” : on le cache sur mobile (ça prend de la place), visible dès sm */}
+                      <div className="hidden sm:block text-xs tracking-[0.3em] uppercase text-white/50 whitespace-nowrap">
                         Ouvrir →
                       </div>
+                    </div>
+
+                    {/* Mobile: petit hint en bas */}
+                    <div className="sm:hidden mt-3 text-[10px] tracking-[0.35em] uppercase text-white/40">
+                      Toucher pour ouvrir →
                     </div>
                   </a>
                 </li>
@@ -128,7 +127,10 @@ export default function DatesMoreClient({
             </ul>
           )}
 
-          <Pagination current={page} total={totalPages} onChange={setPage} />
+          {/* Pagination */}
+          <div className="mt-10 md:mt-12">
+            <Pagination current={page} total={totalPages} onChange={setPage} />
+          </div>
         </div>
       </div>
     </main>

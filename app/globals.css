@@ -11,6 +11,18 @@ body {
   box-sizing: border-box;
 }
 
+/* Mobile polish */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* ===== Modal hardening (anti glass / anti opacity leak) ===== */
 .modal-overlay {
   position: fixed;
@@ -26,4 +38,12 @@ body {
   -webkit-backdrop-filter: none !important;
   mix-blend-mode: normal !important;
   isolation: isolate; /* empêche les effets de blend hérités */
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
 }

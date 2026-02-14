@@ -1,6 +1,5 @@
 import "./globals.css";
 import { Playfair_Display } from "next/font/google";
-import SmoothScroll from "@/components/SmoothScroll";
 import Providers from "./providers";
 import { getInitialUser } from "@/lib/auth/getInitialUser";
 
@@ -26,7 +25,6 @@ export default async function RootLayout({
     <html lang="fr">
       <body className={`${playfair.className} bg-black text-white overflow-x-hidden`}>
         <Providers initialUser={initialUser}>
-          <SmoothScroll />
           {children}
         </Providers>
       </body>

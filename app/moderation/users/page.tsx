@@ -5,7 +5,7 @@ export default async function ModerationUsersPage() {
   await requireAdmin();
   const supabase = createClient();
 
-  // On récupère profils + count commentaires (relation comments.user_id -> profiles.id)
+  // profils + count commentaires (relation comments.user_id -> profiles.id)
   const { data, error } = await supabase
     .from("profiles")
     .select("id, full_name, email, role, comments(count)")
@@ -13,12 +13,12 @@ export default async function ModerationUsersPage() {
     .order("full_name", { ascending: true });
 
   return (
-    <main className="min-h-screen bg-black text-white pt-40 pb-20 px-6">
+    <main className="min-h-screen bg-black text-white pt-28 md:pt-40 pb-16 md:pb-20 px-4 md:px-6">
       <div className="max-w-5xl mx-auto">
-        <h1 className="text-4xl md:text-5xl font-light tracking-wide">
+        <h1 className="text-3xl md:text-5xl font-light tracking-wide">
           Liste utilisateurs
         </h1>
-        <p className="mt-4 text-white/60 text-sm md:text-base">
+        <p className="mt-3 md:mt-4 text-white/60 text-sm md:text-base">
           Vue globale des comptes et de leur activité.
         </p>
 
@@ -28,7 +28,8 @@ export default async function ModerationUsersPage() {
           </div>
         )}
 
-        <div className="mt-12 border border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden">
+        {/* ===== Desktop / Tablet : TABLE ===== */}
+        <div className="mt-10 md:mt-12 border border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden hidden md:block">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-white/10 text-white/60">
               <tr>
@@ -74,6 +75,56 @@ export default async function ModerationUsersPage() {
               })}
             </tbody>
           </table>
+        </div>
+
+        {/* ===== Mobile : CARDS ===== */}
+        <div className="mt-10 space-y-4 md:hidden">
+          {(data ?? []).map((u: any) => {
+            const commentCount = u.comments?.[0]?.count ?? 0;
+            const name = u.full_name || "—";
+            const mail = u.email || "—";
+            const role = (u.role || "user") as string;
+
+            return (
+              <div
+                key={u.id}
+                className="border border-white/10 bg-white/5 backdrop-blur-sm px-5 py-4"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="text-base font-light text-white/85">
+                      {name}
+                    </div>
+                    <div className="mt-1 text-sm text-white/60 break-all">
+                      {mail}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[10px] tracking-widest uppercase px-2 py-1 border border-white/15 bg-white/5 text-white/80">
+                      {role}
+                    </span>
+                    {role === "admin" && (
+                      <span className="text-[10px] tracking-widest uppercase px-2 py-1 border border-white/20 bg-white/10 text-white/85">
+                        Admin
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-4 border-t border-white/10 pt-4 flex items-center justify-between">
+                  <span className="text-[10px] tracking-[0.35em] uppercase text-white/50">
+                    Commentaires
+                  </span>
+                  <span className="text-sm text-white/75">{commentCount}</span>
+                </div>
+              </div>
+            );
+          })}
+
+          {(data ?? []).length === 0 && !error && (
+            <p className="text-white/40 text-sm">Aucun utilisateur.</p>
+          )}
         </div>
       </div>
     </main>

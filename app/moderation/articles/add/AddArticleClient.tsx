@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import ArticleRenderer from "@/app/dates/[year]/[slug]/ArticleRenderer";
 
@@ -69,6 +69,50 @@ function DragHandle() {
   );
 }
 
+function MobileViewSwitch({
+  value,
+  onChange,
+}: {
+  value: "editor" | "preview";
+  onChange: (v: "editor" | "preview") => void;
+}) {
+  const isEditor = value === "editor";
+
+  return (
+    <div className="lg:hidden sticky top-[88px] z-20 -mx-6 px-6 pb-4 pt-3 bg-black/70 backdrop-blur-md border-b border-white/10">
+      <div className="mx-auto max-w-6xl flex items-center justify-between gap-4">
+        <div className="text-xs tracking-[0.35em] uppercase text-white/50">Vue</div>
+
+        <div className="relative flex h-11 items-center border border-white/15 bg-white/5 rounded-full p-1 select-none">
+          <div
+            className={`absolute top-1 bottom-1 w-1/2 bg-white rounded-full transition-transform duration-300 ${
+              isEditor ? "translate-x-0" : "translate-x-full"
+            }`}
+          />
+          <button
+            type="button"
+            onClick={() => onChange("editor")}
+            className={`relative z-10 h-9 px-6 text-[11px] tracking-[0.35em] uppercase rounded-full transition ${
+              isEditor ? "text-black" : "text-white/70 hover:text-white"
+            }`}
+          >
+            Édition
+          </button>
+          <button
+            type="button"
+            onClick={() => onChange("preview")}
+            className={`relative z-10 h-9 px-6 text-[11px] tracking-[0.35em] uppercase rounded-full transition ${
+              !isEditor ? "text-black" : "text-white/70 hover:text-white"
+            }`}
+          >
+            Aperçu
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SortableBlockCard({
   block,
   index,
@@ -76,6 +120,7 @@ function SortableBlockCard({
   onDuplicate,
   onUpdate,
   onPickImage,
+  highlight,
 }: {
   block: Block;
   index: number;
@@ -83,6 +128,7 @@ function SortableBlockCard({
   onDuplicate: (id: string) => void;
   onUpdate: (id: string, patch: Partial<Block>) => void;
   onPickImage: (id: string, file: File | null) => void;
+  highlight?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: block.id });
@@ -94,33 +140,52 @@ function SortableBlockCard({
 
   return (
     <div
+      id={`block-${block.id}`}
       ref={setNodeRef}
       style={style}
-      className={`border border-white/10 bg-black/30 ${
+      className={`border border-white/10 bg-black/30 transition ${
         isDragging ? "opacity-70" : "opacity-100"
+      } ${
+        highlight ? "ring-2 ring-white/60 bg-white/10" : ""
       }`}
     >
       {/* header */}
-      <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-white/5">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-3">
-            <span {...attributes} {...listeners} className="px-1">
+      <div className="px-5 py-4 border-b border-white/5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 flex items-center gap-4">
+            <span {...attributes} {...listeners} className="px-1 shrink-0">
               <DragHandle />
             </span>
-            <div className="text-xs tracking-[0.3em] uppercase text-white/50">
-              Bloc {index + 1}
+
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="text-xs tracking-[0.3em] uppercase text-white/50">
+                  Bloc {index + 1}
+                </div>
+                <TypeBadge type={block.type} />
+              </div>
+
+              {/* Actions sous le header */}
+              <div className="mt-3 flex flex-wrap gap-3 text-xs text-white/60">
+                <button
+                  onClick={() => onDuplicate(block.id)}
+                  className="border border-white/15 px-3 py-1.5 tracking-widest uppercase hover:bg-white hover:text-black transition"
+                >
+                  Dupliquer
+                </button>
+                <button
+                  onClick={() => onRemove(block.id)}
+                  className="border border-white/15 px-3 py-1.5 tracking-widest uppercase hover:bg-white hover:text-black transition"
+                >
+                  Supprimer
+                </button>
+              </div>
             </div>
           </div>
-          <TypeBadge type={block.type} />
-        </div>
 
-        <div className="flex items-center gap-4 text-xs text-white/60">
-          <button onClick={() => onDuplicate(block.id)} className="hover:text-white transition">
-            Dupliquer
-          </button>
-          <button onClick={() => onRemove(block.id)} className="hover:text-white transition">
-            Supprimer
-          </button>
+          <div className="hidden sm:block shrink-0 text-[10px] tracking-[0.35em] uppercase text-white/30">
+            ⠿ drag
+          </div>
         </div>
       </div>
 
@@ -136,7 +201,8 @@ function SortableBlockCard({
             />
 
             {(block as any).url && (
-              <div className="border border-white/10 bg-white/5 p-3">
+              <div className="border border-white/10 bg-white/5 p-3 overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={(block as any).url} alt="preview" className="max-h-48 w-auto" />
               </div>
             )}
@@ -176,8 +242,19 @@ function SortableBlockCard({
   );
 }
 
+type ValidationResult =
+  | { ok: true }
+  | {
+      ok: false;
+      message: string;
+      field?: "title" | "date" | "slug" | "blocks";
+      blockId?: string;
+    };
+
 export default function AddArticleClient() {
   const supabase = createClient();
+
+  const [mobileView, setMobileView] = useState<"editor" | "preview">("editor");
 
   const [title, setTitle] = useState("");
   const [publishedDate, setPublishedDate] = useState<string>("");
@@ -186,44 +263,120 @@ export default function AddArticleClient() {
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  const [blocks, setBlocks] = useState<Block[]>([
-    { id: uid(), type: "paragraph", content: "" },
-  ]);
+  const [blocks, setBlocks] = useState<Block[]>([{ id: uid(), type: "paragraph", content: "" }]);
+
+  // refs meta
+  const titleRef = useRef<HTMLInputElement | null>(null);
+  const dateRef = useRef<HTMLInputElement | null>(null);
+  const slugRef = useRef<HTMLInputElement | null>(null);
+  const blocksTopRef = useRef<HTMLDivElement | null>(null);
+
+  // highlight UI
+  const [flashField, setFlashField] = useState<null | "title" | "date" | "slug" | "blocks">(null);
+  const [flashBlockId, setFlashBlockId] = useState<string | null>(null);
+
+  // pending scroll targets
+  const pendingScrollRef = useRef<null | { kind: "field"; field: "title" | "date" | "slug" | "blocks" } | { kind: "block"; id: string }>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  const computedSlug = useMemo(
-    () => (slugInput ? slugify(slugInput) : slugify(title)),
-    [slugInput, title]
-  );
+  const computedSlug = useMemo(() => (slugInput ? slugify(slugInput) : slugify(title)), [slugInput, title]);
 
-  const previewYear = useMemo(
-    () => (publishedDate ? yearFromDate(publishedDate) : "—"),
-    [publishedDate]
-  );
+  const previewYear = useMemo(() => (publishedDate ? yearFromDate(publishedDate) : "—"), [publishedDate]);
+
+  const scrollToField = (field: "title" | "date" | "slug" | "blocks") => {
+    setMobileView("editor");
+    pendingScrollRef.current = { kind: "field", field };
+    setFlashField(field);
+    window.setTimeout(() => setFlashField(null), 2600);
+  };
+
+  const scrollToBlock = (id: string) => {
+    setMobileView("editor");
+    pendingScrollRef.current = { kind: "block", id };
+    setFlashBlockId(id);
+    window.setTimeout(() => setFlashBlockId(null), 2600);
+  };
+
+  // run scroll after DOM update / view switch
+  useEffect(() => {
+    const p = pendingScrollRef.current;
+    if (!p) return;
+
+    const doScroll = () => {
+      if (p.kind === "field") {
+        if (p.field === "title" && titleRef.current) {
+          titleRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+          titleRef.current.focus();
+          pendingScrollRef.current = null;
+          return;
+        }
+        if (p.field === "date" && dateRef.current) {
+          dateRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+          dateRef.current.focus();
+          pendingScrollRef.current = null;
+          return;
+        }
+        if (p.field === "slug" && slugRef.current) {
+          slugRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+          slugRef.current.focus();
+          pendingScrollRef.current = null;
+          return;
+        }
+        if (p.field === "blocks" && blocksTopRef.current) {
+          blocksTopRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+          pendingScrollRef.current = null;
+          return;
+        }
+      } else {
+        const el = document.getElementById(`block-${p.id}`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          pendingScrollRef.current = null;
+          return;
+        }
+      }
+      // si pas encore dispo, retenter vite fait
+      window.setTimeout(() => doScroll(), 80);
+    };
+
+    doScroll();
+  }, [mobileView, blocks.length]);
 
   const addBlock = (type: Block["type"]) => {
-    if (type === "youtube") setBlocks((p) => [...p, { id: uid(), type: "youtube", url: "", caption: "" }]);
-    else if (type === "image") setBlocks((p) => [...p, { id: uid(), type: "image", file: null, caption: "" }]);
-    else setBlocks((p) => [...p, { id: uid(), type, content: "" } as any]);
+    const newId = uid();
+
+    setBlocks((p) => {
+      if (type === "youtube") return [...p, { id: newId, type: "youtube", url: "", caption: "" }];
+      if (type === "image") return [...p, { id: newId, type: "image", file: null, caption: "" }];
+      return [...p, { id: newId, type, content: "" } as any];
+    });
+
+    scrollToBlock(newId);
   };
 
   const removeBlock = (id: string) => setBlocks((p) => p.filter((b) => b.id !== id));
 
   const duplicateBlock = (id: string) => {
+    let newId = uid();
+
     setBlocks((prev) => {
       const i = prev.findIndex((b) => b.id === id);
       if (i === -1) return prev;
+
       const b = prev[i];
       const copy: Block = JSON.parse(JSON.stringify(b));
-      (copy as any).id = uid();
+      (copy as any).id = newId;
+
       const out = [...prev];
       out.splice(i + 1, 0, copy);
       return out;
     });
+
+    scrollToBlock(newId);
   };
 
   const updateBlock = (id: string, patch: Partial<Block>) => {
@@ -234,10 +387,11 @@ export default function AddArticleClient() {
     setBlocks((prev) =>
       prev.map((b) => {
         if (b.id !== blockId || b.type !== "image") return b;
-        const url = file ? URL.createObjectURL(file) : undefined;
+        const url = file ? URL.createObjectURL(file) : (b as any).url;
         return { ...b, file, url };
       })
     );
+    scrollToBlock(blockId);
   };
 
   const onDragEnd = (event: DragEndEvent) => {
@@ -263,29 +417,25 @@ export default function AddArticleClient() {
     return data.publicUrl;
   };
 
-  const validate = async () => {
+  const validate = async (): Promise<ValidationResult> => {
     const cleanTitle = title.trim();
-    if (!cleanTitle) return "Titre requis.";
-    if (!publishedDate) return "Date de publication requise.";
-    if (!computedSlug) return "Slug invalide.";
+    if (!cleanTitle) return { ok: false, message: "Titre requis.", field: "title" };
+    if (!publishedDate) return { ok: false, message: "Date de publication requise.", field: "date" };
+    if (!computedSlug) return { ok: false, message: "Slug invalide.", field: "slug" };
 
-    const { data: existing, error } = await supabase
-      .from("articles")
-      .select("id")
-      .eq("slug", computedSlug)
-      .maybeSingle();
-
-    if (error) return error.message;
-    if (existing) return "Slug déjà utilisé. Change-le (ex: ajoute un suffixe).";
+    const { data: existing, error } = await supabase.from("articles").select("id").eq("slug", computedSlug).maybeSingle();
+    if (error) return { ok: false, message: error.message, field: "slug" };
+    if (existing) return { ok: false, message: "Slug déjà utilisé. Change-le (ex: ajoute un suffixe).", field: "slug" };
 
     const hasContent = blocks.some((b) => {
-      if (b.type === "image") return !!b.file;
+      if (b.type === "image") return !!b.file || !!(b as any).url;
       if (b.type === "youtube") return (b.url || "").trim().length > 0;
       return (b as any).content?.trim?.().length > 0;
     });
 
-    if (!hasContent) return "Ajoute au moins un bloc non vide.";
-    return null;
+    if (!hasContent) return { ok: false, message: "Ajoute au moins un bloc non vide.", field: "blocks" };
+
+    return { ok: true };
   };
 
   const save = async () => {
@@ -294,9 +444,12 @@ export default function AddArticleClient() {
     setSaving(true);
 
     const v = await validate();
-    if (v) {
+    if (!v.ok) {
       setSaving(false);
-      setErr(v);
+      setErr(v.message);
+
+      if (v.field) scrollToField(v.field);
+      if (v.blockId) scrollToBlock(v.blockId);
       return;
     }
 
@@ -308,6 +461,7 @@ export default function AddArticleClient() {
     if (uErr || !user) {
       setSaving(false);
       setErr("Session invalide. Reconnecte-toi.");
+      scrollToField("title");
       return;
     }
 
@@ -412,13 +566,20 @@ export default function AddArticleClient() {
     });
   }, [blocks]);
 
+  const fieldGlow = (field: "title" | "date" | "slug" | "blocks") =>
+    flashField === field ? "ring-2 ring-white/70 bg-white/10" : "";
+
   return (
-    <main className="min-h-screen bg-black text-white pt-40 pb-20 px-6">
+    <main className="min-h-screen bg-black text-white pt-32 lg:pt-40 pb-20 px-6">
       <div className="max-w-6xl mx-auto">
+        <MobileViewSwitch value={mobileView} onChange={setMobileView} />
+
         <div className="flex flex-col gap-10 lg:flex-row lg:items-start">
           {/* LEFT: Editor */}
-          <div className="w-full lg:w-1/2">
-            <h1 className="text-4xl md:text-5xl font-light tracking-wide">Ajouter un article</h1>
+          <div className={`w-full lg:w-1/2 ${mobileView === "preview" ? "hidden lg:block" : "block"}`}>
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-light tracking-wide">
+              Ajouter un article
+            </h1>
             <p className="mt-4 text-white/60 text-sm md:text-base">
               Éditeur V3 : drag’n drop des blocs + preview live.
             </p>
@@ -435,21 +596,23 @@ export default function AddArticleClient() {
               </div>
             )}
 
-            <div className="mt-10 border border-white/10 bg-white/5 backdrop-blur-sm p-8 space-y-6">
+            <div className="mt-10 border border-white/10 bg-white/5 backdrop-blur-sm p-5 sm:p-8 space-y-6">
               {/* Meta */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
+                <div className={`transition rounded-sm ${fieldGlow("title")}`}>
                   <div className="text-xs tracking-[0.3em] uppercase text-white/50">Titre</div>
                   <input
+                    ref={titleRef}
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     className="mt-2 w-full bg-transparent border border-white/15 px-4 py-3 text-sm outline-none focus:border-white/40 transition"
                   />
                 </div>
 
-                <div>
+                <div className={`transition rounded-sm ${fieldGlow("date")}`}>
                   <div className="text-xs tracking-[0.3em] uppercase text-white/50">Date</div>
                   <input
+                    ref={dateRef}
                     type="date"
                     value={publishedDate}
                     onChange={(e) => setPublishedDate(e.target.value)}
@@ -457,9 +620,10 @@ export default function AddArticleClient() {
                   />
                 </div>
 
-                <div>
+                <div className={`transition rounded-sm ${fieldGlow("slug")}`}>
                   <div className="text-xs tracking-[0.3em] uppercase text-white/50">Slug</div>
                   <input
+                    ref={slugRef}
                     value={slugInput}
                     onChange={(e) => setSlugInput(e.target.value)}
                     placeholder={slugify(title) || "ex: 13-juin"}
@@ -492,31 +656,37 @@ export default function AddArticleClient() {
                 </div>
 
                 {/* DnD Blocks */}
-                <div className="mt-8">
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={onDragEnd}
-                  >
-                    <SortableContext items={blocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
-                      <div className="space-y-4">
-                        {blocks.map((b, idx) => (
-                          <SortableBlockCard
-                            key={b.id}
-                            block={b}
-                            index={idx}
-                            onRemove={removeBlock}
-                            onDuplicate={duplicateBlock}
-                            onUpdate={updateBlock}
-                            onPickImage={pickImage}
-                          />
-                        ))}
-                      </div>
-                    </SortableContext>
-                  </DndContext>
+                <div className="mt-8" ref={blocksTopRef}>
+                  <div className={`transition rounded-sm ${fieldGlow("blocks")}`}>
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+                      <SortableContext items={blocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
+                        <div className="space-y-4">
+                          {blocks.map((b, idx) => (
+                            <SortableBlockCard
+                              key={b.id}
+                              block={b}
+                              index={idx}
+                              onRemove={removeBlock}
+                              onDuplicate={duplicateBlock}
+                              onUpdate={updateBlock}
+                              onPickImage={pickImage}
+                              highlight={flashBlockId === b.id}
+                            />
+                          ))}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
+                  </div>
                 </div>
 
-                <div className="mt-10 flex justify-end">
+                <div className="mt-10 flex flex-col sm:flex-row sm:justify-end gap-3">
+                  <button
+                    onClick={() => setMobileView("preview")}
+                    className="lg:hidden border border-white/20 px-6 py-3 text-xs tracking-widest uppercase hover:bg-white hover:text-black transition"
+                  >
+                    Voir l’aperçu
+                  </button>
+
                   <button
                     onClick={save}
                     disabled={saving}
@@ -530,32 +700,38 @@ export default function AddArticleClient() {
           </div>
 
           {/* RIGHT: Live preview */}
-          <div className="w-full lg:w-1/2 lg:sticky lg:top-32">
-            <div className="border border-white/10 bg-white/5 backdrop-blur-sm p-8">
-              <div className="text-xs tracking-[0.3em] uppercase text-white/50">Aperçu</div>
+          <div className={`w-full lg:w-1/2 lg:sticky lg:top-32 ${mobileView === "editor" ? "hidden lg:block" : "block"}`}>
+            <div className="border border-white/10 bg-white/5 backdrop-blur-sm p-5 sm:p-8">
+              <div className="flex items-center justify-between gap-4">
+                <div className="text-xs tracking-[0.3em] uppercase text-white/50">Aperçu</div>
+                <button
+                  onClick={() => setMobileView("editor")}
+                  className="lg:hidden text-xs tracking-widest uppercase text-white/60 hover:text-white transition"
+                >
+                  Retour édition
+                </button>
+              </div>
 
-              <h2 className="mt-4 text-3xl md:text-4xl font-light tracking-wide text-white/90">
+              <h2 className="mt-4 text-2xl sm:text-3xl md:text-4xl font-light tracking-wide text-white/90">
                 {title.trim() || "Titre de l’article"}
               </h2>
 
-              <div className="mt-3 text-xs tracking-[0.3em] uppercase text-white/40">
+              <div className="mt-3 text-xs tracking-[0.3em] uppercase text-white/40 break-words">
                 {previewYear} — /dates/{previewYear !== "—" ? previewYear : "YYYY"}/{computedSlug || "slug"}
               </div>
 
-              <div className="mt-10">
+              <div className="mt-8 sm:mt-10">
                 <ArticleRenderer blocks={previewBlocks as any} />
               </div>
 
-              <div className="mt-14 flex justify-end">
+              <div className="mt-12 flex justify-end">
                 <div className="text-xs tracking-[0.4em] uppercase text-white/40">
                   Auteur : <span className="text-white/70">Moi</span>
                 </div>
               </div>
             </div>
 
-            <div className="mt-4 text-xs text-white/40">
-              Astuce: attrape le ⠿ pour déplacer un bloc.
-            </div>
+            <div className="mt-4 text-xs text-white/40">Astuce: attrape le ⠿ pour déplacer un bloc.</div>
           </div>
         </div>
       </div>

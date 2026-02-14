@@ -72,6 +72,7 @@ export default function GalleryClient({
     if (selectedIndex === null) return;
     if (selectedIndex < paged.length - 1) setSelectedIndex(selectedIndex + 1);
   };
+
   const prevItem = () => {
     if (selectedIndex === null) return;
     if (selectedIndex > 0) setSelectedIndex(selectedIndex - 1);
@@ -94,50 +95,59 @@ export default function GalleryClient({
   const canNext = selectedIndex !== null && selectedIndex < paged.length - 1;
 
   return (
-    <main className="min-h-screen bg-black text-white pt-40 pb-20 px-6">
+    <main className="min-h-screen bg-black text-white px-4 sm:px-6 md:px-10 pt-28 sm:pt-32 md:pt-40 pb-16 md:pb-20">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h1 className="text-4xl md:text-5xl font-light tracking-wide">
+        <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+          <div className="max-w-2xl">
+            <h1 className="font-light tracking-wide text-[clamp(2rem,7vw,3rem)]">
               Galerie
             </h1>
-            <p className="mt-4 text-white/60 text-sm md:text-base">
+            <p className="mt-3 text-white/60 text-sm sm:text-base leading-relaxed">
               Photos & vidéos. Lecture uniquement au clic.
             </p>
           </div>
 
           {/* Controls */}
           <div className="w-full md:w-[920px]">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-end">
-              <SearchInput
-                value={q}
-                onChange={setQ}
-                placeholder="Rechercher…"
-                count={filtered.length}
-              />
+            {/* Mobile: stack + row IA/switch */}
+            <div className="flex flex-col gap-3 sm:gap-4 md:flex-row md:items-center md:justify-end">
+              <div className="w-full md:w-auto md:flex-1">
+                <SearchInput
+                  value={q}
+                  onChange={setQ}
+                  placeholder="Rechercher…"
+                  count={filtered.length}
+                />
+              </div>
 
-              {mode === "videos" && (
-                <AICheckbox checked={iaEnabled} onChange={setIaEnabled} label="✨ IA améliorée" />
-              )}
+              <div className="flex items-center gap-3 justify-between sm:justify-end flex-wrap">
+                {mode === "videos" && (
+                  <AICheckbox
+                    checked={iaEnabled}
+                    onChange={setIaEnabled}
+                    label="✨ IA améliorée"
+                  />
+                )}
 
-              <ModeSwitch value={mode} onChange={setMode} />
+                <ModeSwitch value={mode} onChange={setMode} />
+              </div>
             </div>
           </div>
         </div>
 
         {/* Pagination label */}
-        <div className="mt-10 flex items-center justify-between gap-4">
-          <div className="text-xs tracking-[0.35em] uppercase text-white/50">
+        <div className="mt-8 sm:mt-10 flex items-center justify-between gap-4">
+          <div className="text-[10px] sm:text-xs tracking-[0.35em] uppercase text-white/45">
             Page {page} / {totalPages}
           </div>
         </div>
 
         {/* Grid */}
-        <div className="mt-8 border-t border-white/10 pt-10">
+        <div className="mt-6 sm:mt-8 border-t border-white/10 pt-8 sm:pt-10">
           <MediaGrid mode={mode} items={paged} onSelect={setSelectedIndex} />
 
-          <div className="mt-12">
+          <div className="mt-10 sm:mt-12">
             <Pagination current={page} total={totalPages} onChange={setPage} />
           </div>
         </div>

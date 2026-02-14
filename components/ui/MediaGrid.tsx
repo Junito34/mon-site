@@ -18,14 +18,14 @@ export default function MediaGrid({
   }
 
   return (
-    <div className="columns-1 sm:columns-2 lg:columns-3 gap-5 [column-fill:_balance]">
+    <div className="columns-1 sm:columns-2 lg:columns-3 gap-4 sm:gap-5 [column-fill:_balance]">
       {items.map((src, i) => (
         <button
           key={src}
           onClick={() => onSelect(i)}
-          className="mb-5 w-full text-left break-inside-avoid cursor-pointer group"
+          className="mb-4 sm:mb-5 w-full text-left break-inside-avoid cursor-pointer group"
         >
-          <div className="relative w-full overflow-hidden border border-white/10 bg-white/5">
+          <div className="relative w-full overflow-hidden border border-white/10 bg-white/5 rounded-sm">
             {mode === "photos" ? (
               <Image
                 src={src}
@@ -44,9 +44,11 @@ export default function MediaGrid({
                   playsInline
                   className="w-full h-auto object-cover group-hover:opacity-85 transition"
                 />
+
+                {/* Play overlay (bien lisible + responsive) */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="w-14 h-14 rounded-full bg-black/55 border border-white/20 flex items-center justify-center backdrop-blur-sm">
-                    <span className="text-2xl">▶</span>
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-black/60 border border-white/20 flex items-center justify-center backdrop-blur-sm">
+                    <span className="text-xl sm:text-2xl leading-none">▶</span>
                   </div>
                 </div>
               </div>
