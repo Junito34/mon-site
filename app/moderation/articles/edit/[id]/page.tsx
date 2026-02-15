@@ -1,20 +1,12 @@
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
-import ClientOnlyEditor from "./ClientOnlyEditor";
+import ArticleEditor from "@/components/article-editor/ArticleEditor";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
 type Params = { id: string };
 
-export default async function EditArticlePage({
-  params,
-}: {
-  params: Promise<Params>;
-}) {
+export default async function EditArticlePage({ params }: { params: Promise<Params> }) {
   const supabase = createClient();
-
-  // ✅ Next 16: params est un Promise
   const { id } = await params;
 
   const { data: article, error: aErr } = await supabase
@@ -33,13 +25,12 @@ export default async function EditArticlePage({
 
   return (
     <>
-      <Navbar />
-      <ClientOnlyEditor
+      <ArticleEditor
+        mode="edit"
         initialArticle={article ?? null}
         initialBlocks={(blocks ?? []) as any}
         initialError={initialError}
       />
-      <Footer />
     </>
   );
 }

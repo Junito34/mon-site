@@ -23,14 +23,18 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-type Block =
+/* =========================
+   Types
+========================= */
+
+export type Block =
   | { id: string; type: "title"; content: string }
   | { id: string; type: "paragraph"; content: string }
   | { id: string; type: "quote"; content: string }
   | { id: string; type: "youtube"; url: string; caption?: string }
   | { id: string; type: "image"; file?: File | null; url?: string; caption?: string };
 
-type DbBlock = {
+export type DbBlock = {
   id: string;
   type: string;
   content: string | null;
@@ -39,12 +43,26 @@ type DbBlock = {
   sort_index: number;
 };
 
-type DbArticle = {
+export type DbArticle = {
   id: string;
   title: string;
   slug: string;
   published_date: string | null;
 };
+
+type Mode = "create" | "edit";
+
+type Props =
+  | { mode: "create" }
+  | { mode: "edit"; initialArticle: DbArticle | null; initialBlocks: DbBlock[]; initialError: string | null };
+
+type ValidationResult =
+  | { ok: true }
+  | { ok: false; message: string; field?: "title" | "date" | "slug" | "blocks" };
+
+/* =========================
+   Utils
+========================= */
 
 const uid = () => crypto.randomUUID();
 
@@ -65,6 +83,10 @@ function yearFromDate(d: string) {
     return "0000";
   }
 }
+
+/* =========================
+   UI atoms (internes)
+========================= */
 
 function TypeBadge({ type }: { type: Block["type"] }) {
   return (
@@ -136,8 +158,7 @@ function SortableBlockCard({
   onDuplicate,
   onUpdate,
   onPickImage,
-  registerEl,
-  isHighlighted,
+  highlight,
 }: {
   block: Block;
   index: number;
@@ -145,8 +166,7 @@ function SortableBlockCard({
   onDuplicate: (id: string) => void;
   onUpdate: (id: string, patch: Partial<Block>) => void;
   onPickImage: (id: string, file: File | null) => void;
-  registerEl: (id: string, el: HTMLDivElement | null) => void;
-  isHighlighted: boolean;
+  highlight?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: block.id });
@@ -156,20 +176,14 @@ function SortableBlockCard({
     transition,
   };
 
-  const setRefs = (el: HTMLDivElement | null) => {
-    setNodeRef(el);
-    registerEl(block.id, el);
-  };
-
   return (
     <div
-      ref={setRefs}
+      id={`block-${block.id}`}
+      ref={setNodeRef}
       style={style}
-      className={[
-        "border border-white/10 bg-black/30 transition",
-        isDragging ? "opacity-70" : "opacity-100",
-        isHighlighted ? "ring-2 ring-white/50 bg-white/10 animate-pulse" : "",
-      ].join(" ")}
+      className={`border border-white/10 bg-black/30 transition ${
+        isDragging ? "opacity-70" : "opacity-100"
+      } ${highlight ? "ring-2 ring-white/60 bg-white/10" : ""}`}
     >
       <div className="px-5 py-4 border-b border-white/5">
         <div className="flex items-start justify-between gap-4">
@@ -261,147 +275,155 @@ function SortableBlockCard({
   );
 }
 
-type Validation =
-  | { ok: true }
-  | { ok: false; message: string; field: "title" | "date" | "slug" | "blocks" };
+/* =========================
+   Main component
+========================= */
 
-export default function ArticleEditorClient({
-  initialArticle,
-  initialBlocks,
-  initialError,
-}: {
-  initialArticle: DbArticle | null;
-  initialBlocks: DbBlock[];
-  initialError: string | null;
-}) {
+export default function ArticleEditor(props: Props) {
   const supabase = createClient();
 
-  const [mobileView, setMobileView] = useState<"editor" | "preview">("editor");
+  const mode: Mode = props.mode;
 
-  const [err, setErr] = useState<string | null>(initialError);
+  let initialArticle: DbArticle | null = null;
+  let initialBlocks: DbBlock[] = [];
+  let initialError: string | null = null;
+
+  if (props.mode === "edit") {
+    initialArticle = props.initialArticle;
+    initialBlocks = props.initialBlocks;
+    initialError = props.initialError;
+  }
+
+  const [mobileView, setMobileView] = useState<"editor" | "preview">("editor");
+  const [err, setErr] = useState<string | null>(initialError ?? null);
   const [msg, setMsg] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // refs pour scroll + flash erreurs
-  const titleRef = useRef<HTMLInputElement | null>(null);
-  const dateRef = useRef<HTMLInputElement | null>(null);
-  const slugRef = useRef<HTMLInputElement | null>(null);
-  const blocksTopRef = useRef<HTMLDivElement | null>(null);
-
-  const blockElsRef = useRef<Record<string, HTMLDivElement | null>>({});
-  const registerBlockEl = (id: string, el: HTMLDivElement | null) => {
-    blockElsRef.current[id] = el;
-  };
-
-  const [flashField, setFlashField] = useState<Validation extends { ok: false } ? any : any>(null);
-  const [flashBlockId, setFlashBlockId] = useState<string | null>(null);
-
-  const scrollToEl = (el: HTMLElement | null) => {
-    if (!el) return;
-    requestAnimationFrame(() => el.scrollIntoView({ behavior: "smooth", block: "center" }));
-  };
-
-  const flashFieldAndScroll = (field: "title" | "date" | "slug" | "blocks") => {
-    setFlashField(field);
-    window.setTimeout(() => setFlashField(null), 2500);
-
-    if (field === "title") scrollToEl(titleRef.current);
-    if (field === "date") scrollToEl(dateRef.current);
-    if (field === "slug") scrollToEl(slugRef.current);
-    if (field === "blocks") scrollToEl(blocksTopRef.current);
-  };
-
-  const flashBlockAndScroll = (id: string) => {
-    setFlashBlockId(id);
-    window.setTimeout(() => setFlashBlockId(null), 2500);
-    scrollToEl(blockElsRef.current[id] ?? null);
-  };
-
-  if (!initialArticle) {
-    return (
-      <main className="min-h-screen bg-black text-white pt-40 pb-20 px-6">
-        <div className="max-w-3xl mx-auto">
-          <h1 className="text-3xl font-light">Article introuvable</h1>
-          {err && <p className="mt-4 text-white/60">{err}</p>}
-        </div>
-      </main>
-    );
-  }
-
-  // ✅ IMPORTANT: l’état doit être initialisé UNE fois avec initialArticle / initialBlocks
-  const [title, setTitle] = useState(initialArticle.title ?? "");
+  // Meta fields state
+  const [title, setTitle] = useState(mode === "edit" ? initialArticle?.title ?? "" : "");
   const [publishedDate, setPublishedDate] = useState(
-    initialArticle.published_date ? initialArticle.published_date.slice(0, 10) : ""
+    mode === "edit" ? (initialArticle?.published_date ? initialArticle.published_date.slice(0, 10) : "") : ""
   );
-  const [slugInput, setSlugInput] = useState(initialArticle.slug ?? "");
+  const [slugInput, setSlugInput] = useState(mode === "edit" ? initialArticle?.slug ?? "" : "");
 
   const computedSlug = useMemo(
     () => (slugInput ? slugify(slugInput) : slugify(title)),
     [slugInput, title]
   );
 
+  // Blocks state
+  const [blocks, setBlocks] = useState<Block[]>(
+    mode === "edit"
+      ? (initialBlocks ?? [])
+          .slice()
+          .sort((a, b) => (a.sort_index ?? 0) - (b.sort_index ?? 0))
+          .map((b) => {
+            if (b.type === "image") return { id: b.id, type: "image", file: null, url: b.media_url ?? "", caption: b.caption ?? "" };
+            if (b.type === "youtube") return { id: b.id, type: "youtube", url: b.media_url ?? "", caption: b.caption ?? "" };
+            return { id: b.id, type: b.type as any, content: b.content ?? "" };
+          })
+      : [{ id: uid(), type: "paragraph", content: "" }]
+  );
+
+  useEffect(() => {
+    setMobileView("editor");
+  }, []);
+
+  // refs for scroll highlight
+  const titleRef = useRef<HTMLInputElement | null>(null);
+  const dateRef = useRef<HTMLInputElement | null>(null);
+  const slugRef = useRef<HTMLInputElement | null>(null);
+  const blocksTopRef = useRef<HTMLDivElement | null>(null);
+
+  const [flashField, setFlashField] = useState<null | "title" | "date" | "slug" | "blocks">(null);
+  const [flashBlockId, setFlashBlockId] = useState<string | null>(null);
+
+  const pendingScrollRef = useRef<
+    null | { kind: "field"; field: "title" | "date" | "slug" | "blocks" } | { kind: "block"; id: string }
+  >(null);
+
+  const scrollToField = (field: "title" | "date" | "slug" | "blocks") => {
+    setMobileView("editor");
+    pendingScrollRef.current = { kind: "field", field };
+    setFlashField(field);
+    window.setTimeout(() => setFlashField(null), 2600);
+  };
+
+  const scrollToBlock = (id: string) => {
+    setMobileView("editor");
+    pendingScrollRef.current = { kind: "block", id };
+    setFlashBlockId(id);
+    window.setTimeout(() => setFlashBlockId(null), 2600);
+  };
+
+  useEffect(() => {
+    const p = pendingScrollRef.current;
+    if (!p) return;
+
+    const doScroll = () => {
+      if (p.kind === "field") {
+        const map = {
+          title: titleRef.current,
+          date: dateRef.current,
+          slug: slugRef.current,
+          blocks: blocksTopRef.current,
+        } as const;
+
+        const el = map[p.field];
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: p.field === "blocks" ? "start" : "center" });
+          if (p.field !== "blocks") (el as any)?.focus?.();
+          pendingScrollRef.current = null;
+          return;
+        }
+      } else {
+        const el = document.getElementById(`block-${p.id}`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          pendingScrollRef.current = null;
+          return;
+        }
+      }
+
+      window.setTimeout(doScroll, 80);
+    };
+
+    doScroll();
+  }, [mobileView, blocks.length]);
+
+  // DnD
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  const [blocks, setBlocks] = useState<Block[]>(
-    (initialBlocks ?? [])
-      .slice()
-      .sort((a, b) => (a.sort_index ?? 0) - (b.sort_index ?? 0))
-      .map((b) => {
-        if (b.type === "image") {
-          return {
-            id: b.id,
-            type: "image",
-            file: null,
-            url: b.media_url ?? "",
-            caption: b.caption ?? "",
-          };
-        }
-        if (b.type === "youtube") {
-          return {
-            id: b.id,
-            type: "youtube",
-            url: b.media_url ?? "",
-            caption: b.caption ?? "",
-          };
-        }
-        return {
-          id: b.id,
-          type: b.type as any,
-          content: b.content ?? "",
-        };
-      })
-  );
+  const onDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+    if (active.id === over.id) return;
 
-  useEffect(() => {
-    // sécurité UX : quand on arrive, on est en édition
-    setMobileView("editor");
-  }, []);
+    setBlocks((items) => {
+      const oldIndex = items.findIndex((i) => i.id === active.id);
+      const newIndex = items.findIndex((i) => i.id === over.id);
+      return arrayMove(items, oldIndex, newIndex);
+    });
+  };
 
+  // Block actions
   const addBlock = (type: Block["type"]) => {
     const newId = uid();
-
     setBlocks((p) => {
-      const next =
-        type === "youtube"
-          ? [...p, { id: newId, type: "youtube", url: "", caption: "" } as any]
-          : type === "image"
-          ? [...p, { id: newId, type: "image", file: null, caption: "" } as any]
-          : [...p, { id: newId, type, content: "" } as any];
-      return next;
+      if (type === "youtube") return [...p, { id: newId, type: "youtube", url: "", caption: "" }];
+      if (type === "image") return [...p, { id: newId, type: "image", file: null, caption: "" }];
+      return [...p, { id: newId, type, content: "" } as any];
     });
-
-    setMobileView("editor");
-    window.setTimeout(() => flashBlockAndScroll(newId), 50);
+    scrollToBlock(newId);
   };
 
   const removeBlock = (id: string) => setBlocks((p) => p.filter((b) => b.id !== id));
 
   const duplicateBlock = (id: string) => {
     const newId = uid();
-
     setBlocks((prev) => {
       const i = prev.findIndex((b) => b.id === id);
       if (i === -1) return prev;
@@ -411,9 +433,7 @@ export default function ArticleEditorClient({
       out.splice(i + 1, 0, copy);
       return out;
     });
-
-    setMobileView("editor");
-    window.setTimeout(() => flashBlockAndScroll(newId), 50);
+    scrollToBlock(newId);
   };
 
   const updateBlock = (id: string, patch: Partial<Block>) => {
@@ -428,20 +448,10 @@ export default function ArticleEditorClient({
         return { ...b, file, url };
       })
     );
-    setMobileView("editor");
+    scrollToBlock(blockId);
   };
 
-  const onDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-
-    setBlocks((items) => {
-      const oldIndex = items.findIndex((i) => i.id === active.id);
-      const newIndex = items.findIndex((i) => i.id === over.id);
-      return arrayMove(items, oldIndex, newIndex);
-    });
-  };
-
+  // Upload
   const uploadImage = async (articleId: string, blockId: string, file: File) => {
     const ext = file.name.split(".").pop() || "jpg";
     const path = `${articleId}/${blockId}.${ext}`;
@@ -453,28 +463,25 @@ export default function ArticleEditorClient({
     return data.publicUrl;
   };
 
-  const validate = async (): Promise<Validation> => {
+  const validate = async (): Promise<ValidationResult> => {
     if (!title.trim()) return { ok: false, message: "Titre requis.", field: "title" };
     if (!publishedDate) return { ok: false, message: "Date requise.", field: "date" };
     if (!computedSlug) return { ok: false, message: "Slug invalide.", field: "slug" };
 
-    const { data: existing, error } = await supabase
-      .from("articles")
-      .select("id")
-      .eq("slug", computedSlug)
-      .neq("id", initialArticle.id)
-      .maybeSingle();
+    const q = supabase.from("articles").select("id").eq("slug", computedSlug);
+    if (mode === "edit" && initialArticle?.id) q.neq("id", initialArticle.id);
 
+    const { data: existing, error } = await q.maybeSingle();
     if (error) return { ok: false, message: error.message, field: "slug" };
-    if (existing) return { ok: false, message: "Slug déjà utilisé par un autre article.", field: "slug" };
+    if (existing) return { ok: false, message: mode === "edit" ? "Slug déjà utilisé par un autre article." : "Slug déjà utilisé. Change-le.", field: "slug" };
 
     const hasContent = blocks.some((b) => {
       if (b.type === "image") return !!b.file || !!b.url;
       if (b.type === "youtube") return (b.url || "").trim().length > 0;
       return (b as any).content?.trim?.().length > 0;
     });
-
     if (!hasContent) return { ok: false, message: "Ajoute au moins un bloc non vide.", field: "blocks" };
+
     return { ok: true };
   };
 
@@ -487,104 +494,142 @@ export default function ArticleEditorClient({
     if (!v.ok) {
       setSaving(false);
       setErr(v.message);
-      setMobileView("editor");
-      flashFieldAndScroll(v.field);
+      if (v.field) scrollToField(v.field);
       return;
     }
 
-    // update article
-    const { error: aErr } = await supabase
-      .from("articles")
-      .update({
-        title: title.trim(),
-        slug: computedSlug,
-        published_date: publishedDate,
-      })
-      .eq("id", initialArticle.id);
+    try {
+      if (mode === "create") {
+        // auth
+        const {
+          data: { user },
+          error: uErr,
+        } = await supabase.auth.getUser();
+        if (uErr || !user) {
+          setSaving(false);
+          setErr("Session invalide. Reconnecte-toi.");
+          scrollToField("title");
+          return;
+        }
 
-    if (aErr) {
-      setSaving(false);
-      setErr(aErr.message);
-      return;
-    }
+        // create article
+        const { data: article, error: aErr } = await supabase
+          .from("articles")
+          .insert({
+            title: title.trim(),
+            slug: computedSlug,
+            published_date: publishedDate,
+            author_id: user.id,
+          })
+          .select("id")
+          .single();
 
-    // reset blocks
-    const { error: delErr } = await supabase.from("article_blocks").delete().eq("article_id", initialArticle.id);
-    if (delErr) {
-      setSaving(false);
-      setErr(delErr.message);
-      return;
-    }
+        if (aErr || !article) throw new Error(aErr?.message || "Erreur création article.");
 
-    const rows: any[] = [];
-    for (let i = 0; i < blocks.length; i++) {
-      const b = blocks[i];
+        // blocks
+        const rows: any[] = [];
+        for (let i = 0; i < blocks.length; i++) {
+          const b = blocks[i];
 
-      if (b.type === "image") {
-        let url = b.url ?? "";
-        if (b.file) url = await uploadImage(initialArticle.id, b.id, b.file);
-        if (!url) continue;
+          if (b.type === "image") {
+            if (!b.file) continue;
+            const url = await uploadImage(article.id, b.id, b.file);
+            rows.push({ article_id: article.id, type: "image", media_url: url, caption: (b.caption || "").trim() || null, sort_index: i });
+          } else if (b.type === "youtube") {
+            const url = (b.url || "").trim();
+            if (!url) continue;
+            rows.push({ article_id: article.id, type: "youtube", media_url: url, caption: (b.caption || "").trim() || null, sort_index: i });
+          } else {
+            const content = ((b as any).content || "").trim();
+            if (!content) continue;
+            rows.push({ article_id: article.id, type: b.type, content, sort_index: i });
+          }
+        }
 
-        rows.push({
-          article_id: initialArticle.id,
-          type: "image",
-          media_url: url,
-          caption: (b.caption || "").trim() || null,
-          sort_index: i,
-        });
-      } else if (b.type === "youtube") {
-        const url = (b.url || "").trim();
-        if (!url) continue;
+        const { error: bErr } = await supabase.from("article_blocks").insert(rows);
+        if (bErr) throw new Error(bErr.message);
 
-        rows.push({
-          article_id: initialArticle.id,
-          type: "youtube",
-          media_url: url,
-          caption: (b.caption || "").trim() || null,
-          sort_index: i,
-        });
-      } else {
-        const content = ((b as any).content || "").trim();
-        if (!content) continue;
-
-        rows.push({
-          article_id: initialArticle.id,
-          type: b.type,
-          content,
-          sort_index: i,
-        });
+        setSaving(false);
+        setMsg("Article créé.");
+        const year = yearFromDate(publishedDate);
+        window.location.href = `/dates/${year}/${computedSlug}`;
+        return;
       }
-    }
 
-    const { error: bErr } = await supabase.from("article_blocks").insert(rows);
-    if (bErr) {
+      // ===== EDIT MODE
+      if (!initialArticle?.id) throw new Error("Article introuvable.");
+
+      const { error: aErr } = await supabase
+        .from("articles")
+        .update({ title: title.trim(), slug: computedSlug, published_date: publishedDate })
+        .eq("id", initialArticle.id);
+
+      if (aErr) throw new Error(aErr.message);
+
+      const { error: delErr } = await supabase.from("article_blocks").delete().eq("article_id", initialArticle.id);
+      if (delErr) throw new Error(delErr.message);
+
+      const rows: any[] = [];
+      for (let i = 0; i < blocks.length; i++) {
+        const b = blocks[i];
+
+        if (b.type === "image") {
+          let url = b.url ?? "";
+          if (b.file) url = await uploadImage(initialArticle.id, b.id, b.file);
+          if (!url) continue;
+          rows.push({ article_id: initialArticle.id, type: "image", media_url: url, caption: (b.caption || "").trim() || null, sort_index: i });
+        } else if (b.type === "youtube") {
+          const url = (b.url || "").trim();
+          if (!url) continue;
+          rows.push({ article_id: initialArticle.id, type: "youtube", media_url: url, caption: (b.caption || "").trim() || null, sort_index: i });
+        } else {
+          const content = ((b as any).content || "").trim();
+          if (!content) continue;
+          rows.push({ article_id: initialArticle.id, type: b.type, content, sort_index: i });
+        }
+      }
+
+      const { error: bErr } = await supabase.from("article_blocks").insert(rows);
+      if (bErr) throw new Error(bErr.message);
+
       setSaving(false);
-      setErr(bErr.message);
-      return;
+      setMsg("Modifications enregistrées.");
+      const year = yearFromDate(publishedDate);
+      window.location.href = `/dates/${year}/${computedSlug}`;
+    } catch (e: any) {
+      setSaving(false);
+      setErr(e?.message || "Erreur.");
     }
-
-    setSaving(false);
-    setMsg("Modifications enregistrées.");
-
-    const year = yearFromDate(publishedDate);
-    window.location.href = `/dates/${year}/${computedSlug}`;
   };
 
+  // preview blocks
   const previewBlocks = useMemo(() => {
     return blocks.map((b, i) => {
-      if (b.type === "image") {
-        return { id: b.id, type: "image", content: null, media_url: b.url ?? null, caption: b.caption ?? null, sort_index: i };
-      }
-      if (b.type === "youtube") {
-        return { id: b.id, type: "youtube", content: null, media_url: b.url || null, caption: b.caption ?? null, sort_index: i };
-      }
+      if (b.type === "image") return { id: b.id, type: "image", content: null, media_url: b.url ?? null, caption: b.caption ?? null, sort_index: i };
+      if (b.type === "youtube") return { id: b.id, type: "youtube", content: null, media_url: b.url || null, caption: b.caption ?? null, sort_index: i };
       return { id: b.id, type: b.type, content: (b as any).content ?? null, media_url: null, caption: null, sort_index: i };
     });
   }, [blocks]);
 
   const previewYear = useMemo(() => (publishedDate ? yearFromDate(publishedDate) : "—"), [publishedDate]);
+  const fieldGlow = (field: "title" | "date" | "slug" | "blocks") =>
+    flashField === field ? "ring-2 ring-white/70 bg-white/10" : "";
 
-  const fieldBox = (active: boolean) => (active ? "ring-2 ring-red-500/60 animate-pulse" : "");
+  const pageTitle = mode === "edit" ? "Modifier un article" : "Ajouter un article";
+  const saveLabel = mode === "edit" ? "Enregistrer" : "Publier l’article";
+  const savingLabel = mode === "edit" ? "Enregistrement..." : "Création...";
+
+  // écran edit: si pas d'article
+  if (mode === "edit" && !initialArticle) {
+    return (
+      <main className="min-h-screen bg-black text-white pt-40 pb-20 px-6">
+        <div className="max-w-3xl mx-auto">
+          <h1 className="text-3xl font-light">Article introuvable</h1>
+          {err && <p className="mt-4 text-white/60">{err}</p>}
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-black text-white pt-32 lg:pt-40 pb-20 px-6">
@@ -592,17 +637,15 @@ export default function ArticleEditorClient({
         <MobileViewSwitch value={mobileView} onChange={setMobileView} />
 
         <div className="flex flex-col gap-10 lg:flex-row lg:items-start">
-          {/* LEFT: Editor */}
+          {/* LEFT */}
           <div className={`w-full lg:w-1/2 ${mobileView === "preview" ? "hidden lg:block" : "block"}`}>
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-light tracking-wide">Modifier un article</h1>
-            <p className="mt-4 text-white/60 text-sm md:text-base">Drag’n drop des blocs + preview live.</p>
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-light tracking-wide">{pageTitle}</h1>
+            <p className="mt-4 text-white/60 text-sm md:text-base">Drag’n drop des blocs + aperçu live.</p>
 
             {(err || msg) && (
               <div
                 className={`mt-8 border px-4 py-3 text-sm ${
-                  err
-                    ? "border-red-500/30 bg-red-500/10 text-red-200"
-                    : "border-emerald-500/25 bg-emerald-500/10 text-emerald-100"
+                  err ? "border-red-500/30 bg-red-500/10 text-red-200" : "border-emerald-500/25 bg-emerald-500/10 text-emerald-100"
                 }`}
               >
                 {err ?? msg}
@@ -612,7 +655,7 @@ export default function ArticleEditorClient({
             <div className="mt-10 border border-white/10 bg-white/5 backdrop-blur-sm p-5 sm:p-8 space-y-6">
               {/* Meta */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className={fieldBox(flashField === "title")}>
+                <div className={`transition rounded-sm ${fieldGlow("title")}`}>
                   <div className="text-xs tracking-[0.3em] uppercase text-white/50">Titre</div>
                   <input
                     ref={titleRef}
@@ -622,7 +665,7 @@ export default function ArticleEditorClient({
                   />
                 </div>
 
-                <div className={fieldBox(flashField === "date")}>
+                <div className={`transition rounded-sm ${fieldGlow("date")}`}>
                   <div className="text-xs tracking-[0.3em] uppercase text-white/50">Date</div>
                   <input
                     ref={dateRef}
@@ -633,12 +676,13 @@ export default function ArticleEditorClient({
                   />
                 </div>
 
-                <div className={fieldBox(flashField === "slug")}>
+                <div className={`transition rounded-sm ${fieldGlow("slug")}`}>
                   <div className="text-xs tracking-[0.3em] uppercase text-white/50">Slug</div>
                   <input
                     ref={slugRef}
                     value={slugInput}
                     onChange={(e) => setSlugInput(e.target.value)}
+                    placeholder={slugify(title) || "ex: 13-juin"}
                     className="mt-2 w-full bg-transparent border border-white/15 px-4 py-3 text-sm outline-none focus:border-white/40 transition"
                   />
                   <div className="mt-2 text-xs text-white/40">
@@ -647,54 +691,47 @@ export default function ArticleEditorClient({
                 </div>
               </div>
 
-              {/* Tools */}
+              {/* Blocks */}
               <div className="border-t border-white/10 pt-6">
-                <div
-                  ref={blocksTopRef}
-                  className={[
-                    "rounded-sm transition",
-                    flashField === "blocks" ? "ring-2 ring-red-500/60 animate-pulse" : "",
-                  ].join(" ")}
-                >
-                  <div className="flex flex-wrap gap-3">
-                    <button onClick={() => addBlock("title")} className="border border-white/20 px-4 py-2 text-xs tracking-widest uppercase hover:bg-white hover:text-black transition">
-                      + Titre
-                    </button>
-                    <button onClick={() => addBlock("paragraph")} className="border border-white/20 px-4 py-2 text-xs tracking-widest uppercase hover:bg-white hover:text-black transition">
-                      + Paragraphe
-                    </button>
-                    <button onClick={() => addBlock("quote")} className="border border-white/20 px-4 py-2 text-xs tracking-widest uppercase hover:bg-white hover:text-black transition">
-                      + Citation
-                    </button>
-                    <button onClick={() => addBlock("image")} className="border border-white/20 px-4 py-2 text-xs tracking-widest uppercase hover:bg-white hover:text-black transition">
-                      + Image
-                    </button>
-                    <button onClick={() => addBlock("youtube")} className="border border-white/20 px-4 py-2 text-xs tracking-widest uppercase hover:bg-white hover:text-black transition">
-                      + YouTube
-                    </button>
-                  </div>
+                <div className="flex flex-wrap gap-3">
+                  <button onClick={() => addBlock("title")} className="border border-white/20 px-4 py-2 text-xs tracking-widest uppercase hover:bg-white hover:text-black transition">
+                    + Titre
+                  </button>
+                  <button onClick={() => addBlock("paragraph")} className="border border-white/20 px-4 py-2 text-xs tracking-widest uppercase hover:bg-white hover:text-black transition">
+                    + Paragraphe
+                  </button>
+                  <button onClick={() => addBlock("quote")} className="border border-white/20 px-4 py-2 text-xs tracking-widest uppercase hover:bg-white hover:text-black transition">
+                    + Citation
+                  </button>
+                  <button onClick={() => addBlock("image")} className="border border-white/20 px-4 py-2 text-xs tracking-widest uppercase hover:bg-white hover:text-black transition">
+                    + Image
+                  </button>
+                  <button onClick={() => addBlock("youtube")} className="border border-white/20 px-4 py-2 text-xs tracking-widest uppercase hover:bg-white hover:text-black transition">
+                    + YouTube
+                  </button>
                 </div>
 
-                <div className="mt-8">
-                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-                    <SortableContext items={blocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
-                      <div className="space-y-4">
-                        {blocks.map((b, idx) => (
-                          <SortableBlockCard
-                            key={b.id}
-                            block={b}
-                            index={idx}
-                            onRemove={removeBlock}
-                            onDuplicate={duplicateBlock}
-                            onUpdate={updateBlock}
-                            onPickImage={pickImage}
-                            registerEl={registerBlockEl}
-                            isHighlighted={flashBlockId === b.id}
-                          />
-                        ))}
-                      </div>
-                    </SortableContext>
-                  </DndContext>
+                <div className="mt-8" ref={blocksTopRef}>
+                  <div className={`transition rounded-sm ${fieldGlow("blocks")}`}>
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+                      <SortableContext items={blocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
+                        <div className="space-y-4">
+                          {blocks.map((b, idx) => (
+                            <SortableBlockCard
+                              key={b.id}
+                              block={b}
+                              index={idx}
+                              onRemove={removeBlock}
+                              onDuplicate={duplicateBlock}
+                              onUpdate={updateBlock}
+                              onPickImage={pickImage}
+                              highlight={flashBlockId === b.id}
+                            />
+                          ))}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
+                  </div>
                 </div>
 
                 <div className="mt-10 flex flex-col sm:flex-row sm:justify-end gap-3">
@@ -710,14 +747,14 @@ export default function ArticleEditorClient({
                     disabled={saving}
                     className="border border-white/20 px-6 py-3 text-xs tracking-widest uppercase hover:bg-white hover:text-black transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {saving ? "Enregistrement..." : "Enregistrer"}
+                    {saving ? savingLabel : saveLabel}
                   </button>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* RIGHT: Preview */}
+          {/* RIGHT preview */}
           <div className={`w-full lg:w-1/2 lg:sticky lg:top-32 ${mobileView === "editor" ? "hidden lg:block" : "block"}`}>
             <div className="border border-white/10 bg-white/5 backdrop-blur-sm p-5 sm:p-8">
               <div className="flex items-center justify-between gap-4">
