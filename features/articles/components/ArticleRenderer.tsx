@@ -1,4 +1,4 @@
-import ArticleImageSection from "@/components/ArticleImageSection";
+import ArticleImageSection from "@/features/articles/components/ArticleImageSection";
 
 type Block = {
   id: string;

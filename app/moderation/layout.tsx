@@ -1,6 +1,6 @@
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
-import { requireAdmin } from "@/lib/auth/requireAdmin";
+import Navbar from "@/components/layout/Navbar";
+import Footer from "@/components/layout/Footer";
+import { requireAdmin } from "@/features/auth/lib/requireAdmin";
 
 export default async function ModerationLayout({
   children,

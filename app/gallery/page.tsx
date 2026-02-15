@@ -1,9 +1,9 @@
 import fs from "fs";
 import path from "path";
 
-import GalleryClient from "./GalleryClient";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
+import GalleryClient from "../../features/gallery/components/GalleryClient";
+import Navbar from "@/components/layout/Navbar";
+import Footer from "@/components/layout/Footer";
 
 function listMedia(dirAbs: string, prefix: string, exts?: string[]) {
   if (!fs.existsSync(dirAbs)) return [];

@@ -1,7 +1,7 @@
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
-import Comments from "@/components/Comments";
-import ArticleRenderer from "./ArticleRenderer";
+import Navbar from "@/components/layout/Navbar";
+import Footer from "@/components/layout/Footer";
+import Comments from "@/features/articles/components/Comments";
+import ArticleRenderer from "../../../../features/articles/components/ArticleRenderer";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";

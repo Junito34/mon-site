@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import SearchBar from "@/components/SearchBar";
-import Pagination from "@/components/Pagination";
+import Pagination from "@/components/ui/Pagination";
 import { createClient } from "@/lib/supabase/client";
+import SearchInput from "@/components/ui/SearchInput";
 
 type Row = {
   id: string;
@@ -120,7 +120,8 @@ export default function PostsClient({ userId }: { userId: string }) {
           </div>
 
           <div className="w-full md:w-90">
-            <SearchBar
+            <SearchInput
+            variant="full"
               value={q}
               onChange={setQ}
               placeholder="Rechercher…"

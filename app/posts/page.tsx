@@ -1,6 +1,6 @@
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
-import PostsClient from "./PostsClient";
+import Navbar from "@/components/layout/Navbar";
+import Footer from "@/components/layout/Footer";
+import PostsClient from "../../features/posts/components/PostsClient";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function PostsPage() {

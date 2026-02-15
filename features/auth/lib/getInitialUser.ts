@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import type { User, UserRole } from "@/context/AuthContext";
+import type { User, UserRole } from "@/features/auth/context/AuthContext";
 
 export async function getInitialUser(): Promise<User | null> {
   const supabase = createClient();

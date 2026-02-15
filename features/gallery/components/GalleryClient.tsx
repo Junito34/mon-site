@@ -1,13 +1,13 @@
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
-import Pagination from "@/components/Pagination";
+import Pagination from "@/components/ui/Pagination";
 
 import ModeSwitch from "@/components/ui/ModeSwitch";
 import AICheckbox from "@/components/ui/AICheckbox";
 import SearchInput from "@/components/ui/SearchInput";
-import MediaGrid from "@/components/ui/MediaGrid";
-import MediaLightbox from "@/components/ui/MediaLightbox";
+import MediaGrid from "@/features/gallery/components/MediaGrid";
+import MediaLightbox from "@/features/gallery/components/MediaLightbox";
 
 type Mode = "photos" | "videos";
 const PAGE_SIZE = 10;

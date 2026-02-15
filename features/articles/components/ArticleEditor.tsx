@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import ArticleRenderer from "@/app/dates/[year]/[slug]/ArticleRenderer";
+import ArticleRenderer from "@/features/articles/components/ArticleRenderer";
 
 // DnD kit
 import {

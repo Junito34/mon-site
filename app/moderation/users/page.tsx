@@ -1,4 +1,4 @@
-import { requireAdmin } from "@/lib/auth/requireAdmin";
+import { requireAdmin } from "@/features/auth/lib/requireAdmin";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function ModerationUsersPage() {

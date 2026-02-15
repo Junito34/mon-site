@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
-import SearchBar from "@/components/SearchBar";
-import Pagination from "@/components/Pagination";
+import Pagination from "@/components/ui/Pagination";
+import SearchInput from "@/components/ui/SearchInput";
 
 type PageLink = {
   title: string;
@@ -68,7 +68,8 @@ export default function DatesMoreClient({
 
           {/* Search */}
           <div className="w-full md:w-[360px]">
-            <SearchBar
+            <SearchInput
+              variant="full"
               value={q}
               onChange={setQ}
               placeholder="Rechercher…"

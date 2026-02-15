@@ -1,13 +1,11 @@
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
-import ArticleEditor from "@/components/article-editor/ArticleEditor";
+import Navbar from "@/components/layout/Navbar";
+import Footer from "@/components/layout/Footer";
+import ArticleEditor from "@/features/articles/components/ArticleEditor";
 
 export default function AddArticlePage() {
   return (
     <>
-      <Navbar />
       <ArticleEditor mode="create" />
-      <Footer />
     </>
   );
 }

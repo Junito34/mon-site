@@ -1,4 +1,4 @@
-import ImageSection from "@/components/ImageSection";
+import ImageSection from "@/features/articles/components/ImageSection";
 
 export default function ArticleImageSection({
   image,

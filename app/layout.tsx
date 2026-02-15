@@ -1,7 +1,7 @@
 import "./globals.css";
 import { Playfair_Display } from "next/font/google";
 import Providers from "./providers";
-import { getInitialUser } from "@/lib/auth/getInitialUser";
+import { getInitialUser } from "@/features/auth/lib/getInitialUser";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],

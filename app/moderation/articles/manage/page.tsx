@@ -1,6 +1,6 @@
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
-import ManageArticlesClient from "./ManageArticlesClient";
+import Navbar from "@/components/layout/Navbar";
+import Footer from "@/components/layout/Footer";
+import ManageArticlesClient from "../../../../features/moderation/components/ManageArticlesClient";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";

@@ -1,4 +1,4 @@
-import ArticleEditor from "@/components/article-editor/ArticleEditor";
+import ArticleEditor from "@/features/articles/components/ArticleEditor";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";

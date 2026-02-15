@@ -1,6 +1,6 @@
 "use client";
 
-import { AuthProvider, type User } from "@/context/AuthContext";
+import { AuthProvider, type User } from "@/features/auth/context/AuthContext";
 
 export default function Providers({
   children,

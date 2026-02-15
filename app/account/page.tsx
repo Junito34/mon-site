@@ -1,6 +1,6 @@
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
-import AccountClient from "./AccountClient";
+import Navbar from "@/components/layout/Navbar";
+import Footer from "@/components/layout/Footer";
+import AccountClient from "../../features/auth/components/AccountClient";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function AccountPage() {

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/features/auth/context/AuthContext";
 
 type LatestItem = { title: string; href: string; year: string };
 
@@ -130,7 +130,7 @@ export default function Navbar() {
               Qui est-il?
             </a>
 
-            <a href="/galerie" onClick={closeAll} className="hover:opacity-60 transition">
+            <a href="/gallery" onClick={closeAll} className="hover:opacity-60 transition">
               Galerie
             </a>
 
